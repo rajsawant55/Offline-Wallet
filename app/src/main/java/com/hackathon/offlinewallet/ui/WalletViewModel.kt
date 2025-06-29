@@ -21,7 +21,11 @@ class WalletViewModel @Inject constructor(
         viewModelScope.launch { repository.addMoney(amount) }
     }
 
-    fun sendMoney(amount: Double, recipient: String, type: String = "SEND") {
-        viewModelScope.launch { repository.sendMoney(amount, recipient, type) }
+    fun sendMoney(amount: Double, recipient: String, type:String,isUpi: Boolean = false): Boolean {
+        var success = false
+        viewModelScope.launch {
+            success = repository.sendMoney(amount, recipient, type, isUpi)
+        }
+        return success
     }
 }

@@ -29,7 +29,7 @@ fun MerchantPaymentScreen(navController: NavController, viewModel: WalletViewMod
         Spacer(modifier = Modifier.height(16.dp))
         Button(onClick = {
             amount.toDoubleOrNull()?.let {
-                viewModel.sendMoney(it, merchantId, "MERCHANT")
+                viewModel.sendMoney(it, merchantId, "MERCHANT", false)
                 navController.popBackStack()
             }
         }) {

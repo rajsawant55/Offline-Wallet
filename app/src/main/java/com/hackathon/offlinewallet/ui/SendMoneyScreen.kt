@@ -1,6 +1,7 @@
 package com.hackathon.offlinewallet.ui
 
 import android.Manifest
+import android.content.pm.PackageManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
@@ -8,12 +9,13 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
-import com.google.mlkit.vision.barcode.common.Barcode
-import com.google.mlkit.vision.codescanner.GmsBarcodeScanner
-import com.google.mlkit.vision.codescanner.GmsBarcodeScanning
+import com.google.mlkit.vision.codescanner.*
+import kotlinx.coroutines.launch
 
 @Composable
 fun SendMoneyScreen(navController: NavController, viewModel: WalletViewModel) {
@@ -21,22 +23,22 @@ fun SendMoneyScreen(navController: NavController, viewModel: WalletViewModel) {
     var recipient by remember { mutableStateOf("") }
     var selectedTab by remember { mutableStateOf(0) } // 0: QR, 1: UPI
     val wallet by viewModel.wallet.collectAsState()
-    val snackbarHostState = remember { SnackbarHostState() }
     val context = LocalContext.current
     val scanner = GmsBarcodeScanning.getClient(context)
+    val snackbarHostState = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope() // Coroutine scope for launching snackbar
+    val hasCamera = remember {
+        context.packageManager.hasSystemFeature(PackageManager.FEATURE_CAMERA)
+    }
     val permissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         if (granted) {
             scanQrCode(scanner, onSuccess = { recipientId ->
                 recipient = recipientId
             }, onError = {
-                LaunchedEffect(Unit) {
-                    snackbarHostState.showSnackbar("Failed to scan QR code")
-                }
+                scope.launch { snackbarHostState.showSnackbar("Failed to scan QR code") }
             })
         } else {
-            LaunchedEffect(Unit) {
-                snackbarHostState.showSnackbar("Camera permission denied")
-            }
+            scope.launch { snackbarHostState.showSnackbar("Camera permission denied") }
         }
     }
 
@@ -63,7 +65,8 @@ fun SendMoneyScreen(navController: NavController, viewModel: WalletViewModel) {
                     Tab(
                         selected = selectedTab == 0,
                         onClick = { selectedTab = 0 },
-                        text = { Text("Scan QR") }
+                        text = { Text("Scan QR") },
+                        enabled = hasCamera
                     )
                     Tab(
                         selected = selectedTab == 1,
@@ -86,10 +89,28 @@ fun SendMoneyScreen(navController: NavController, viewModel: WalletViewModel) {
 
                 // QR or UPI input
                 if (selectedTab == 0) {
-                    Button(onClick = {
-                        permissionLauncher.launch(Manifest.permission.CAMERA)
-                    }) {
-                        Text("Scan QR Code")
+                    if (hasCamera) {
+                        Button(onClick = {
+                            if (ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
+                                scanQrCode(scanner, onSuccess = { recipientId ->
+                                    recipient = recipientId
+                                }, onError = {
+                                    scope.launch {
+                                        snackbarHostState.showSnackbar("Failed to scan QR code")
+                                    }
+                                })
+                            } else {
+                                permissionLauncher.launch(Manifest.permission.CAMERA)
+                            }
+                        }) {
+                            Text("Scan QR Code")
+                        }
+                    } else {
+                        Text(
+                            text = "Camera not available on this device",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.error
+                        )
                     }
                     if (recipient.isNotBlank()) {
                         Text(text = "Recipient: $recipient", style = MaterialTheme.typography.bodyMedium)
@@ -109,33 +130,36 @@ fun SendMoneyScreen(navController: NavController, viewModel: WalletViewModel) {
                     val amountDouble = amount.toDoubleOrNull()
                     when {
                         amountDouble == null || amountDouble <= 0 -> {
-                            LaunchedEffect(Unit) {
+                            scope.launch {
                                 snackbarHostState.showSnackbar("Invalid amount")
                             }
                         }
-                        wallet.balance < amountDouble -> {
-                            LaunchedEffect(Unit) {
+                        wallet!!.balance < amountDouble -> {
+                            scope.launch {
                                 snackbarHostState.showSnackbar("Insufficient balance")
                             }
                         }
                         recipient.isBlank() -> {
-                            LaunchedEffect(Unit) {
+                            scope.launch {
                                 snackbarHostState.showSnackbar("Recipient ID or UPI ID required")
                             }
                         }
                         else -> {
-                            LaunchedEffect(Unit) {
-                                val isUpi = selectedTab == 1
-                                val success = viewModel.sendMoney(amountDouble, recipient, isUpi)
-                                if (success) {
-                                    snackbarHostState.showSnackbar("Transaction successful")
-                                    navController.popBackStack()
-                                } else {
-                                    snackbarHostState.showSnackbar(
-                                        if (isUpi) "UPI transaction failed: No internet" else "Transaction failed"
-                                    )
-                                }
+                            val isUpi = selectedTab == 1
+                            scope.launch {
+                                val success = viewModel.sendMoney(
+                                    amountDouble, recipient, "UPI",
+                                    isUpi
+                                )
+                                snackbarHostState.showSnackbar(
+                                    if (success) "Transaction successful" else {
+                                        if (isUpi) "UPI transaction failed: No internet"
+                                        else "Transaction failed"
+                                    }
+                                )
+                                if (success) navController.popBackStack() // Navigate back on success
                             }
+
                         }
                     }
                 }) {
