@@ -1,0 +1,18 @@
+package com.hackathon.offlinewallet.data
+
+import androidx.room.Dao
+import androidx.room.Insert
+import androidx.room.Query
+import kotlinx.coroutines.flow.Flow
+
+@Dao
+interface UserDao {
+    @Query("SELECT * FROM users WHERE email = :email")
+    fun getUser(email: String): Flow<User?>
+
+    @Insert
+    suspend fun insertUser(user: User)
+
+    @Query("UPDATE users SET jwtToken = :jwtToken WHERE email = :email")
+    suspend fun updateJwtToken(email: String, jwtToken: String?)
+}
