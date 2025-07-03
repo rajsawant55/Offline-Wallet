@@ -1,6 +1,7 @@
 package com.hackathon.offlinewallet.ui
 
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
@@ -9,28 +10,27 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.scale
-import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import kotlinx.coroutines.launch
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun MerchantPaymentScreen(navController: NavController, authViewModel: AuthViewModel, walletViewModel: WalletViewModel = hiltViewModel()) {
-    var amount by remember { mutableStateOf("") }
-    var merchantId by remember { mutableStateOf("") }
+fun RegistrationScreen(navController: NavController, authViewModel: AuthViewModel = hiltViewModel()) {
+    var email by remember { mutableStateOf("") }
+    var username by remember { mutableStateOf("") }
+    var password by remember { mutableStateOf("") }
     var isLoading by remember { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
     val haptic = LocalHapticFeedback.current
-    val coroutineScope = rememberCoroutineScope()
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()
+    val coroutineScope = rememberCoroutineScope()
     val scale by animateFloatAsState(if (isPressed) 0.95f else 1f)
 
     Scaffold(
-        topBar = { TopAppBar(title = { Text("Pay Merchant") }) },
         snackbarHost = { SnackbarHost(hostState = snackbarHostState) }
     ) { innerPadding ->
         Column(
@@ -38,7 +38,8 @@ fun MerchantPaymentScreen(navController: NavController, authViewModel: AuthViewM
                 .fillMaxSize()
                 .padding(innerPadding)
                 .padding(16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
         ) {
             Card(
                 modifier = Modifier
@@ -51,57 +52,59 @@ fun MerchantPaymentScreen(navController: NavController, authViewModel: AuthViewM
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Text(
-                        text = "Pay Merchant",
+                        text = "Create Account",
                         style = MaterialTheme.typography.headlineMedium,
                         color = MaterialTheme.colorScheme.primary
                     )
                     Spacer(modifier = Modifier.height(24.dp))
+
                     OutlinedTextField(
-                        value = amount,
-                        onValueChange = { amount = it },
-                        label = { Text("Amount (₹)") },
+                        value = email,
+                        onValueChange = { email = it },
+                        label = { Text("Email") },
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true
                     )
                     Spacer(modifier = Modifier.height(16.dp))
+
                     OutlinedTextField(
-                        value = merchantId,
-                        onValueChange = { merchantId = it },
-                        label = { Text("Merchant ID") },
+                        value = username,
+                        onValueChange = { username = it },
+                        label = { Text("Username") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    OutlinedTextField(
+                        value = password,
+                        onValueChange = { password = it },
+                        label = { Text("Password") },
+                        visualTransformation = PasswordVisualTransformation(),
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true
                     )
                     Spacer(modifier = Modifier.height(24.dp))
+
                     Button(
                         onClick = {
-                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                            haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
                             isLoading = true
-                            coroutineScope.launch {
-                                val amountDouble = amount.toDoubleOrNull()
-                                if (amountDouble != null && amountDouble > 0 && merchantId.isNotBlank()) {
-                                    val userEmail = authViewModel.getCurrentUserEmail()
-                                    if (userEmail == null) {
-                                        snackbarHostState.showSnackbar("User not logged in")
-                                        isLoading = false
-                                        return@launch
-                                    }
-                                    if (walletViewModel.sendMoney(userEmail, amountDouble, merchantId, true)) {
-                                        snackbarHostState.showSnackbar("₹$amount paid to merchant")
-                                        navController.popBackStack()
-                                    } else {
-                                        snackbarHostState.showSnackbar("Payment failed")
-                                    }
-                                } else {
-                                    snackbarHostState.showSnackbar("Please enter valid amount and merchant ID")
-                                }
+                            authViewModel.register(email, username, password) { result ->
                                 isLoading = false
+                                result.onSuccess {
+                                    navController.navigate("home") {
+                                        popUpTo("login") { inclusive = true }
+                                    }
+                                }.onFailure { exception ->
+                                    coroutineScope.launch {
+                                        snackbarHostState.showSnackbar(
+                                            exception.message ?: "Registration failed. Please check your device settings."
+                                        )
+                                    }
+                                }
                             }
                         },
-
-
-
-
-
                         modifier = Modifier
                             .fillMaxWidth()
                             .scale(scale)
@@ -115,9 +118,19 @@ fun MerchantPaymentScreen(navController: NavController, authViewModel: AuthViewM
                                 color = MaterialTheme.colorScheme.onPrimary
                             )
                         } else {
-                            Text("Pay")
+                            Text("Register")
                         }
                     }
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    Text(
+                        text = "Already have an account? Login",
+                        modifier = Modifier.clickable {
+                            navController.navigate("login")
+                        },
+                        color = MaterialTheme.colorScheme.primary,
+                        style = MaterialTheme.typography.bodyMedium
+                    )
                 }
             }
         }

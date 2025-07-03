@@ -4,6 +4,8 @@ plugins {
     alias(libs.plugins.hilt.android)
     alias(libs.plugins.kotlin.ksp)
     alias(libs.plugins.compose.compiler)
+	alias(libs.plugins.firebase)
+
 }
 ksp {
     arg("room.schemaLocation", "$projectDir/schemas")
@@ -75,4 +77,12 @@ dependencies {
     implementation(libs.androidx.compose.material3)
     implementation(libs.androidx.hilt.navigation.compose)
 	implementation(libs.mlkit.barcode.scanning)
+	implementation(libs.firebase.auth)
+    implementation(libs.firebase.firestore)
+    implementation(libs.androidx.biometric)
+    implementation(libs.bcrypt)
+    implementation(libs.play.services.auth)
+    implementation(libs.androidx.compose.material.icons)
+    implementation(libs.androidx.compose.animation)
+
 }

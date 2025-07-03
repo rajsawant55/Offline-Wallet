@@ -10,24 +10,28 @@ import javax.inject.Inject
 
 class WalletRepository @Inject constructor(
     private val walletDao: WalletDao,
-     val transactionDao: TransactionDao,
+    private val transactionDao: TransactionDao,
     private val context: Context
 ) {
-    fun getWallet(): Flow<Wallet?> = walletDao.getWallet("user_wallet")
+    fun getWallet(userEmail: String): Flow<Wallet?> = walletDao.getWallet(userEmail)
 
-    suspend fun addMoney(amount: Double) {
+    suspend fun insertWallet(wallet: Wallet) {
+        walletDao.insertWallet(wallet)
+    }
+
+    suspend fun addMoney(userEmail: String, amount: Double) {
         if (amount <= 0) return
-        val wallet = walletDao.getWallet("user_wallet").firstOrNull() ?: Wallet(id = "user_wallet", balance = 0.0)
+        val wallet = walletDao.getWallet(userEmail).firstOrNull() ?: Wallet(id = "wallet_$userEmail", balance = 0.0, userEmail = userEmail)
         walletDao.insertWallet(wallet.copy(balance = wallet.balance + amount))
         transactionDao.insertTransaction(Transaction(amount = amount, recipient = "Self", type = "ADD", timestamp = System.currentTimeMillis()))
         scheduleSync()
     }
 
-    suspend fun sendMoney(amount: Double, recipient: String, type: String = "SEND", isUpi: Boolean = false): Boolean {
+    suspend fun sendMoney(userEmail: String, amount: Double, recipient: String, type: String = "SEND", isUpi: Boolean = false): Boolean {
         if (amount <= 0 || recipient.isBlank()) return false
-        val wallet = walletDao.getWallet("user_wallet").firstOrNull() ?: return false
+        val wallet = walletDao.getWallet(userEmail).firstOrNull() ?: return false
         if (wallet.balance < amount) return false
-        if (isUpi && !isOnline()) return false // UPI requires online connection
+        if (isUpi && !isOnline()) return false
 
         walletDao.updateWallet(wallet.copy(balance = wallet.balance - amount))
         transactionDao.insertTransaction(Transaction(
@@ -35,13 +39,17 @@ class WalletRepository @Inject constructor(
             recipient = recipient,
             type = if (isUpi) "UPI" else type,
             timestamp = System.currentTimeMillis(),
-            isSynced = !isUpi // QR transactions are offline, UPI are synced immediately if online
+            isSynced = !isUpi
         ))
         scheduleSync()
         return true
     }
-
+    fun getTransactionDao(): TransactionDao{
+        return transactionDao
+    }
     fun getTransactions(): Flow<List<Transaction>> = transactionDao.getAllTransactions()
+
+    suspend fun getUnsyncedTransactions(): Flow<List<Transaction>> = transactionDao.getUnsyncedTransactions()
 
     fun isOnline(): Boolean {
         val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager

@@ -8,8 +8,8 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface WalletDao {
-    @Query("SELECT * FROM wallet WHERE id = :id")
-    fun getWallet(id: String): Flow<Wallet?>
+    @Query("SELECT * FROM wallet WHERE userEmail = :userEmail")
+    fun getWallet(userEmail: String): Flow<Wallet?>
 
     @Insert
     suspend fun insertWallet(wallet: Wallet)

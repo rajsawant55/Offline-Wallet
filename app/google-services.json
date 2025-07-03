@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "181037155541",
+    "project_id": "offlinewallet-69044",
+    "storage_bucket": "offlinewallet-69044.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:181037155541:android:2ef19c15a108e3c7c80e5c",
+        "android_client_info": {
+          "package_name": "com.hackathon.offlinewallet"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyC2k5l4I0xJrREQUM1E1qcW9NIzFVJmIPc"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

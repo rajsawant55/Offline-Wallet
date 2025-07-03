@@ -3,19 +3,20 @@ package com.hackathon.offlinewallet.data
 import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.Query
+import androidx.room.Update
 import kotlinx.coroutines.flow.Flow
 
 @Dao
-public interface TransactionDao {
-    @Query("SELECT * FROM transactions ORDER BY timestamp DESC")
-    fun getAllTransactions(): Flow<List<Transaction>>
-
+interface TransactionDao {
     @Insert
     suspend fun insertTransaction(transaction: Transaction)
 
-    @Query("SELECT * FROM transactions WHERE isSynced = 0")
-    suspend fun getUnsyncedTransactions(): List<Transaction>
+    @Update
+     fun updateTransaction(transaction: Transaction)
 
-    @Query("UPDATE transactions SET isSynced = 1 WHERE id = :id")
-    suspend fun markAsSynced(id: Int)
+    @Query("SELECT * FROM transactions")
+    fun getAllTransactions(): Flow<List<Transaction>>
+
+    @Query("SELECT * FROM transactions WHERE isSynced = 0")
+     fun getUnsyncedTransactions(): Flow<List<Transaction>>
 }

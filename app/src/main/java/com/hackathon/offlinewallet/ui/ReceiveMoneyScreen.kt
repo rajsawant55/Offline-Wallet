@@ -1,66 +1,79 @@
 package com.hackathon.offlinewallet.ui
 
-import android.graphics.Bitmap
-import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
-import com.google.zxing.BarcodeFormat
-import com.google.zxing.MultiFormatWriter
-import com.google.zxing.common.BitMatrix
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ReceiveMoneyScreen(navController: NavController, viewModel: WalletViewModel) {
-    val wallet by viewModel.wallet.collectAsState()
-    val qrBitmap = remember { mutableStateOf<Bitmap?>(null) }
+fun ReceiveMoneyScreen(navController: NavController, authViewModel: AuthViewModel, walletViewModel: WalletViewModel = hiltViewModel()) {
+    val userEmail by remember { derivedStateOf { authViewModel.getCurrentUserEmail() ?: "N/A" } }
+    val user by authViewModel.getUser(userEmail).collectAsState(initial = null)
 
-    LaunchedEffect(wallet) {
-        wallet?.id?.let { walletId ->
-            qrBitmap.value = generateQrCode(walletId)
+    Scaffold(
+        topBar = { TopAppBar(title = { Text("Receive Money") }) }
+    ) { innerPadding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPadding)
+                .padding(16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp),
+                elevation = CardDefaults.cardElevation(8.dp)
+            ) {
+                Column(
+                    modifier = Modifier.padding(24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(
+                        text = "Receive Money",
+                        style = MaterialTheme.typography.headlineMedium,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    Spacer(modifier = Modifier.height(24.dp))
+                    Box(
+                        modifier = Modifier
+                            .size(150.dp)
+                            .clip(MaterialTheme.shapes.medium)
+                            .background(Color.Gray),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "QR Code",
+                            color = Color.White,
+                            style = MaterialTheme.typography.bodyLarge
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text(
+                        text = "Share your details",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "Username: ${user?.username ?: "N/A"}",
+                        style = MaterialTheme.typography.bodyLarge
+                    )
+                    Text(
+                        text = "Email: $userEmail",
+                        style = MaterialTheme.typography.bodyLarge
+                    )
+                }
+            }
         }
     }
-
-    Column(
-        modifier = Modifier.fillMaxSize().padding(16.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Text(text = "Receive Money", style = MaterialTheme.typography.headlineSmall)
-        Spacer(modifier = Modifier.height(16.dp))
-        Text(text = "Show this QR code to receive money")
-        Spacer(modifier = Modifier.height(16.dp))
-        if (qrBitmap.value != null) {
-            Image(
-                bitmap = qrBitmap.value!!.asImageBitmap(),
-                contentDescription = "Wallet QR Code",
-                modifier = Modifier.size(200.dp)
-            )
-        } else {
-            CircularProgressIndicator()
-        }
-        Spacer(modifier = Modifier.height(16.dp))
-        Text(text = "Wallet ID: ${wallet?.id ?: "Loading..."}")
-        Spacer(modifier = Modifier.height(16.dp))
-        Button(onClick = { navController.popBackStack() }) {
-            Text("Back")
-        }
-    }
-}
-
-private fun generateQrCode(text: String): Bitmap {
-    val width = 200
-    val height = 200
-    val bitMatrix: BitMatrix = MultiFormatWriter().encode(text, BarcodeFormat.QR_CODE, width, height)
-    val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.RGB_565)
-    for (x in 0 until width) {
-        for (y in 0 until height) {
-            bitmap.setPixel(x, y, if (bitMatrix[x, y]) 0xFF000000.toInt() else 0xFFFFFFFF.toInt())
-        }
-    }
-    return bitmap
 }
