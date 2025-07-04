@@ -1,25 +1,36 @@
 package com.hackathon.offlinewallet.ui
 
-import androidx.compose.foundation.background
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ReceiveMoneyScreen(navController: NavController, authViewModel: AuthViewModel, walletViewModel: WalletViewModel = hiltViewModel()) {
-    val userEmail by remember { derivedStateOf { authViewModel.getCurrentUserEmail() ?: "N/A" } }
-    val user by authViewModel.getUser(userEmail).collectAsState(initial = null)
+    var senderEmail by remember { mutableStateOf("") }
+    var amount by remember { mutableStateOf("") }
+    var isLoading by remember { mutableStateOf(false) }
+    val snackbarHostState = remember { SnackbarHostState() }
+    val haptic = LocalHapticFeedback.current
+    val interactionSource = remember { MutableInteractionSource() }
+    val isPressed by interactionSource.collectIsPressedAsState()
+    val scope = rememberCoroutineScope()
+    val scale by animateFloatAsState(if (isPressed) 0.95f else 1f)
 
     Scaffold(
-        topBar = { TopAppBar(title = { Text("Receive Money") }) }
+        topBar = { TopAppBar(title = { Text("Receive Money") }) },
+        snackbarHost = { SnackbarHost(hostState = snackbarHostState) }
     ) { innerPadding ->
         Column(
             modifier = Modifier
@@ -44,34 +55,65 @@ fun ReceiveMoneyScreen(navController: NavController, authViewModel: AuthViewMode
                         color = MaterialTheme.colorScheme.primary
                     )
                     Spacer(modifier = Modifier.height(24.dp))
-                    Box(
-                        modifier = Modifier
-                            .size(150.dp)
-                            .clip(MaterialTheme.shapes.medium)
-                            .background(Color.Gray),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = "QR Code",
-                            color = Color.White,
-                            style = MaterialTheme.typography.bodyLarge
-                        )
-                    }
+                    OutlinedTextField(
+                        value = senderEmail,
+                        onValueChange = { senderEmail = it },
+                        label = { Text("Sender Email") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true
+                    )
                     Spacer(modifier = Modifier.height(16.dp))
-                    Text(
-                        text = "Share your details",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                    OutlinedTextField(
+                        value = amount,
+                        onValueChange = { amount = it },
+                        label = { Text("Amount (₹)") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true
                     )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        text = "Username: ${user?.username ?: "N/A"}",
-                        style = MaterialTheme.typography.bodyLarge
-                    )
-                    Text(
-                        text = "Email: $userEmail",
-                        style = MaterialTheme.typography.bodyLarge
-                    )
+                    Spacer(modifier = Modifier.height(24.dp))
+                    Button(
+                        onClick = {
+                            haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
+                            isLoading = true
+                            val amountDouble = amount.toDoubleOrNull()
+                            if (amountDouble != null && amountDouble > 0 && senderEmail.isNotBlank()) {
+                                val receiverEmail = authViewModel.getCurrentUserEmail() ?: return@Button
+                                walletViewModel.receiveMoney(receiverEmail, senderEmail, amountDouble) { error ->
+                                    isLoading = false
+                                    if (error == null) {
+                                        scope.launch {
+                                            snackbarHostState.showSnackbar("₹$amount received from $senderEmail successfully")
+                                            navController.popBackStack()
+                                        }
+                                    } else {
+                                        scope.launch {
+                                            snackbarHostState.showSnackbar(error)
+                                        }
+                                    }
+                                }
+                            } else {
+                                isLoading = false
+                                scope.launch {
+                                    snackbarHostState.showSnackbar("Please enter a valid email and amount")
+                                }
+                            }
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .scale(scale)
+                            .height(48.dp),
+                        interactionSource = interactionSource,
+                        enabled = !isLoading
+                    ) {
+                        if (isLoading) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(24.dp),
+                                color = MaterialTheme.colorScheme.onPrimary
+                            )
+                        } else {
+                            Text("Receive Money")
+                        }
+                    }
                 }
             }
         }

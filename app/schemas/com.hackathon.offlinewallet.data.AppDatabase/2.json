@@ -1,8 +1,8 @@
 {
   "formatVersion": 1,
   "database": {
-    "version": 1,
-    "identityHash": "05252a6efa20004deeb105199088a5ae",
+    "version": 2,
+    "identityHash": "ea79124e9ed43482683bafd2fe212569",
     "entities": [
       {
         "tableName": "LocalUser",
@@ -90,7 +90,7 @@
       },
       {
         "tableName": "PendingWalletUpdate",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`updateId` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `email` TEXT NOT NULL, `amount` REAL NOT NULL, `timestamp` TEXT NOT NULL)",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`updateId` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `email` TEXT NOT NULL, `amount` REAL NOT NULL, `timestamp` TEXT NOT NULL, `transactionType` TEXT NOT NULL, `relatedEmail` TEXT)",
         "fields": [
           {
             "fieldPath": "updateId",
@@ -115,6 +115,17 @@
             "columnName": "timestamp",
             "affinity": "TEXT",
             "notNull": true
+          },
+          {
+            "fieldPath": "transactionType",
+            "columnName": "transactionType",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "relatedEmail",
+            "columnName": "relatedEmail",
+            "affinity": "TEXT"
           }
         ],
         "primaryKey": {
@@ -123,11 +134,71 @@
             "updateId"
           ]
         }
+      },
+      {
+        "tableName": "transactions",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `userId` TEXT NOT NULL, `senderEmail` TEXT NOT NULL, `receiverEmail` TEXT NOT NULL, `amount` REAL NOT NULL, `type` TEXT NOT NULL, `timestamp` TEXT NOT NULL, `status` TEXT NOT NULL, PRIMARY KEY(`id`))",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "userId",
+            "columnName": "userId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "senderEmail",
+            "columnName": "senderEmail",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "receiverEmail",
+            "columnName": "receiverEmail",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "amount",
+            "columnName": "amount",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "type",
+            "columnName": "type",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "timestamp",
+            "columnName": "timestamp",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "status",
+            "columnName": "status",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        }
       }
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '05252a6efa20004deeb105199088a5ae')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'ea79124e9ed43482683bafd2fe212569')"
     ]
   }
 }

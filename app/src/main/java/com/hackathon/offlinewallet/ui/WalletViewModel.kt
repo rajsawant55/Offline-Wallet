@@ -2,47 +2,97 @@ package com.hackathon.offlinewallet.ui
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.hackathon.offlinewallet.data.WalletTransactions
 import com.hackathon.offlinewallet.data.Wallet
 import com.hackathon.offlinewallet.data.WalletRepository
-import com.hackathon.offlinewallet.data.AuthRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 @HiltViewModel
 class WalletViewModel @Inject constructor(
-    private val repository: WalletRepository,
-    private val authRepository: AuthRepository
+    private val walletRepository: WalletRepository
 ) : ViewModel() {
-    fun getWallet(userEmail: String): StateFlow<Wallet?> {
+
+    private val _isOnline = MutableStateFlow(walletRepository.isOnline())
+    val isOnline: StateFlow<Boolean> = _isOnline
+
+    init {
         viewModelScope.launch {
-            if (userEmail.isNotBlank()) {
-                // Check if user exists in Room
-                val userExists = authRepository.getUser(userEmail).firstOrNull() != null
-                if (userExists) {
-                    val wallet = repository.getWallet(userEmail).firstOrNull()
-                    if (wallet == null) {
-                        repository.insertWallet(Wallet(id = "wallet_$userEmail", balance = 0.0, userEmail = userEmail))
-                    }
-                }
+            while (true) {
+                _isOnline.value = walletRepository.isOnline()
+                kotlinx.coroutines.delay(5000)
             }
         }
-        return repository.getWallet(userEmail).stateIn(viewModelScope, SharingStarted.Lazily, null)
     }
 
-    val transactions: StateFlow<List<com.hackathon.offlinewallet.data.Transaction>> = repository.getTransactions().stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
-    val isOnline: StateFlow<Boolean> = flow { emit(repository.isOnline()) }.stateIn(viewModelScope, SharingStarted.Lazily, false)
-
-    fun addMoney(userEmail: String, amount: Double) {
-        viewModelScope.launch { repository.addMoney(userEmail, amount) }
-    }
-
-    fun sendMoney(userEmail: String, amount: Double, recipient: String, isUpi: Boolean = false): Boolean {
-        var success = false
+    fun getWallet(email: String): StateFlow<Wallet?> {
+        val walletFlow = MutableStateFlow<Wallet?>(null)
         viewModelScope.launch {
-            success = repository.sendMoney(userEmail, amount, recipient, "SEND", isUpi)
+            walletRepository.getWallet(email).fold(
+                onSuccess = { wallet ->
+                    walletFlow.value = wallet
+                },
+                onFailure = { error ->
+                    walletFlow.value = null
+                    android.util.Log.e("WalletViewModel", "Error fetching wallet: ${error.message}", error)
+                }
+            )
         }
-        return success
+        return walletFlow
+    }
+
+    fun addMoney(email: String, amount: Double, onError: (String?) -> Unit) {
+        viewModelScope.launch {
+            walletRepository.addMoney(email, amount).fold(
+                onSuccess = { onError(null) },
+                onFailure = { error ->
+                    android.util.Log.e("WalletViewModel", "Error adding money: ${error.message}", error)
+                    onError(error.message)
+                }
+            )
+        }
+    }
+
+    fun sendMoney(senderEmail: String, receiverEmail: String, amount: Double, onError: (String?) -> Unit) {
+        viewModelScope.launch {
+            walletRepository.sendMoney(senderEmail, receiverEmail, amount).fold(
+                onSuccess = { onError(null) },
+                onFailure = { error ->
+                    android.util.Log.e("WalletViewModel", "Error sending money: ${error.message}", error)
+                    onError(error.message)
+                }
+            )
+        }
+    }
+
+    fun receiveMoney(receiverEmail: String, senderEmail: String, amount: Double, onError: (String?) -> Unit) {
+        viewModelScope.launch {
+            walletRepository.receiveMoney(receiverEmail, senderEmail, amount).fold(
+                onSuccess = { onError(null) },
+                onFailure = { error ->
+                    android.util.Log.e("WalletViewModel", "Error receiving money: ${error.message}", error)
+                    onError(error.message)
+                }
+            )
+        }
+    }
+
+    fun getTransactions(userId: String): StateFlow<List<WalletTransactions>> {
+        val walletTransactionsFlow = MutableStateFlow<List<WalletTransactions>>(emptyList())
+        viewModelScope.launch {
+            walletRepository.getTransactions(userId).fold(
+                onSuccess = { transactions ->
+                    walletTransactionsFlow.value = transactions
+                },
+                onFailure = { error ->
+                    walletTransactionsFlow.value = emptyList()
+                    android.util.Log.e("WalletViewModel", "Error fetching transactions: ${error.message}", error)
+                }
+            )
+        }
+        return walletTransactionsFlow
     }
 }

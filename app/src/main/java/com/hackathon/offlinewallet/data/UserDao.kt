@@ -7,15 +7,15 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface UserDao {
-    @Insert
-    suspend fun insertUser(user: User)
+    @androidx.room.Query("SELECT * FROM LocalUser WHERE email = :email")
+    suspend fun getUserByEmail(email: String): LocalUser?
 
-    @Query("UPDATE users SET jwtToken = :jwtToken WHERE email = :email")
-    suspend fun updateJwtToken(email: String, jwtToken: String?)
+    @androidx.room.Insert(onConflict = androidx.room.OnConflictStrategy.REPLACE)
+    suspend fun insertUser(user: LocalUser)
 
-    @Query("SELECT * FROM users WHERE email = :email")
-    fun getUser(email: String): Flow<User?>
+    @androidx.room.Query("DELETE FROM LocalUser WHERE email = :email")
+    suspend fun deleteUser(email: String)
 
-    @Query("SELECT * FROM users WHERE username = :username")
-    fun getUserByUsername(username: String): Flow<User?>
+    @androidx.room.Query("SELECT * FROM LocalUser")
+    suspend fun getAllUsers(): List<LocalUser>
 }

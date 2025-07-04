@@ -4,7 +4,6 @@ plugins {
     alias(libs.plugins.hilt.android)
     alias(libs.plugins.kotlin.ksp)
     alias(libs.plugins.compose.compiler)
-	alias(libs.plugins.firebase)
 
 }
 ksp {
@@ -47,6 +46,12 @@ android {
     }
 
     sourceSets["androidTest"].assets.srcDir("$projectDir/schemas")
+
+    packagingOptions {
+        resources {
+            excludes += "/META-INF/versions/9/OSGI-INF/MANIFEST.MF"
+        }
+    }
 }
 
 dependencies {
@@ -55,11 +60,13 @@ dependencies {
     implementation(libs.androidx.appcompat)
     implementation(libs.material)
     implementation(libs.androidx.hilt.common)
-    implementation(libs.play.services.code.scanner)
+    implementation(libs.supabase.auth)
+    implementation(libs.androidx.hilt.work)
+    implementation(libs.identity.jvm)
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
-
+    implementation(libs.ktor.client.okhttp)
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.compose.ui)
@@ -77,12 +84,11 @@ dependencies {
     implementation(libs.androidx.compose.material3)
     implementation(libs.androidx.hilt.navigation.compose)
 	implementation(libs.mlkit.barcode.scanning)
-	implementation(libs.firebase.auth)
-    implementation(libs.firebase.firestore)
+	implementation(libs.supabase.postgrest)
     implementation(libs.androidx.biometric)
     implementation(libs.bcrypt)
     implementation(libs.play.services.auth)
     implementation(libs.androidx.compose.material.icons)
     implementation(libs.androidx.compose.animation)
-
+    implementation(libs.ktor.client.core)
 }

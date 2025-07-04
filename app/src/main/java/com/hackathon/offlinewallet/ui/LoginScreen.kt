@@ -1,37 +1,24 @@
 package com.hackathon.offlinewallet.ui
 
-import androidx.activity.ComponentActivity
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.scale
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
-import androidx.fragment.app.FragmentActivity
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
+import io.github.jan.supabase.auth.auth
 import kotlinx.coroutines.launch
 
 @Composable
 fun LoginScreen(navController: NavController, authViewModel: AuthViewModel = hiltViewModel()) {
-    var identifier by remember { mutableStateOf("") }
+    var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var isLoading by remember { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
-    val context = LocalContext.current
-    val haptic = LocalHapticFeedback.current
-    val interactionSource = remember { MutableInteractionSource() }
-    val isPressed by interactionSource.collectIsPressedAsState()
     val scope = rememberCoroutineScope()
-    val scale by animateFloatAsState(if (isPressed) 0.95f else 1f)
 
     Scaffold(
         snackbarHost = { SnackbarHost(hostState = snackbarHostState) }
@@ -60,16 +47,14 @@ fun LoginScreen(navController: NavController, authViewModel: AuthViewModel = hil
                         color = MaterialTheme.colorScheme.primary
                     )
                     Spacer(modifier = Modifier.height(24.dp))
-
                     OutlinedTextField(
-                        value = identifier,
-                        onValueChange = { identifier = it },
-                        label = { Text("Email or Username") },
+                        value = email,
+                        onValueChange = { email = it },
+                        label = { Text("Email") },
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true
                     )
                     Spacer(modifier = Modifier.height(16.dp))
-
                     OutlinedTextField(
                         value = password,
                         onValueChange = { password = it },
@@ -79,49 +64,23 @@ fun LoginScreen(navController: NavController, authViewModel: AuthViewModel = hil
                         singleLine = true
                     )
                     Spacer(modifier = Modifier.height(24.dp))
-
                     Button(
                         onClick = {
-                            haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
                             isLoading = true
-                            val activity = context as? FragmentActivity ?: return@Button
-                            authViewModel.resolveIdentifierToEmail(identifier) { result ->
-                                result.onSuccess { email ->
-                                    authViewModel.login(email, password, activity) { result ->
-                                        isLoading = false
-                                        result.onSuccess {
-                                            navController.navigate("home") {
-                                                popUpTo("login") { inclusive = true }
-                                            }
-                                        }.onFailure { exception ->
-                                            scope.launch {
-                                                snackbarHostState.showSnackbar(
-                                                    exception.message ?: "Login failed"
-                                                )
-                                            }
-                                        }
+                            authViewModel.login(email, password) { success, error ->
+                                isLoading = false
+                                if (success) {
+                                    navController.navigate("home") {
+                                        popUpTo(navController.graph.startDestinationId) { inclusive = true }
                                     }
-                                }.onFailure { resolveException ->
-                                    isLoading = false
+                                } else {
                                     scope.launch {
-                                        if (resolveException.message == "User not found") {
-                                            snackbarHostState.showSnackbar(
-                                                "User not found. Please register or check your username."
-                                            )
-                                        } else {
-                                            snackbarHostState.showSnackbar(
-                                                resolveException.message ?: "Invalid username or email"
-                                            )
-                                        }
+                                        snackbarHostState.showSnackbar(error ?: "Login failed. Please check your credentials.", duration = SnackbarDuration.Short)
                                     }
                                 }
                             }
                         },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .scale(scale)
-                            .height(48.dp),
-                        interactionSource = interactionSource,
+                        modifier = Modifier.fillMaxWidth(),
                         enabled = !isLoading
                     ) {
                         if (isLoading) {
@@ -134,15 +93,23 @@ fun LoginScreen(navController: NavController, authViewModel: AuthViewModel = hil
                         }
                     }
                     Spacer(modifier = Modifier.height(16.dp))
-
-                    Text(
-                        text = "Need an account? Register",
-                        modifier = Modifier.clickable {
-                            navController.navigate("register")
-                        },
-                        color = MaterialTheme.colorScheme.primary,
-                        style = MaterialTheme.typography.bodyMedium
-                    )
+                    TextButton(onClick = { navController.navigate("register") }) {
+                        Text("Don't have an account? Register")
+                    }
+                    TextButton(onClick = {
+                        if (email.isNotBlank()) {
+                            scope.launch {
+                                authViewModel.getSupabaseClient().client.auth.resetPasswordForEmail(email)
+                                snackbarHostState.showSnackbar("Password reset email sent to $email", duration = SnackbarDuration.Short)
+                            }
+                        } else {
+                            scope.launch {
+                                snackbarHostState.showSnackbar("Please enter your email address.", duration = SnackbarDuration.Short)
+                            }
+                        }
+                    }) {
+                        Text("Forgot Password?")
+                    }
                 }
             }
         }

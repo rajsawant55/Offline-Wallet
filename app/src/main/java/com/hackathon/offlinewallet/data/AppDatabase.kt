@@ -2,57 +2,57 @@ package com.hackathon.offlinewallet.data
 
 import androidx.room.Database
 import androidx.room.RoomDatabase
+import androidx.room.TypeConverters
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
+import java.util.UUID
 
-@Database(entities = [Wallet::class, Transaction::class, User::class], version = 5)
+@Database(entities = [LocalUser::class, LocalWallet::class, PendingWalletUpdate::class, WalletTransactions::class], version = 3)
+@TypeConverters(Converters::class)
 abstract class AppDatabase : RoomDatabase() {
-    abstract fun walletDao(): WalletDao
-    abstract fun transactionDao(): TransactionDao
     abstract fun userDao(): UserDao
-	    companion object {
+    abstract fun walletDao(): WalletDao
+    abstract fun pendingWalletUpdateDao(): PendingWalletUpdateDao
+    abstract fun walletTransactionDao(): WalletTransactionDao
+    companion object {
         val MIGRATION_1_2 = object : Migration(1, 2) {
             override fun migrate(database: SupportSQLiteDatabase) {
-                database.execSQL("DELETE FROM wallet")
+                database.execSQL("""
+                    ALTER TABLE PendingWalletUpdate
+                    ADD COLUMN transactionType TEXT NOT NULL DEFAULT 'add';
+                """)
+                database.execSQL("""
+                    ALTER TABLE PendingWalletUpdate
+                    ADD COLUMN relatedEmail TEXT;
+                """)
             }
         }
-
         val MIGRATION_2_3 = object : Migration(2, 3) {
             override fun migrate(database: SupportSQLiteDatabase) {
-                // No schema changes, just increment version
-            }
-        }
-		
-        val MIGRATION_3_4 = object : Migration(3, 4) {
-            override fun migrate(database: SupportSQLiteDatabase) {
                 database.execSQL("""
-                    CREATE TABLE users (
-                        email TEXT NOT NULL PRIMARY KEY,
-                        username TEXT NOT NULL,
-                        passwordHash TEXT NOT NULL,
-                        jwtToken TEXT
+                    CREATE TABLE WalletTransactions (
+                        id TEXT NOT NULL,
+                        userId TEXT NOT NULL,
+                        senderEmail TEXT NOT NULL,
+                        receiverEmail TEXT NOT NULL,
+                        amount REAL NOT NULL,
+                        type TEXT NOT NULL,
+                        timestamp TEXT NOT NULL,
+                        status TEXT NOT NULL,
+                        PRIMARY KEY (id)
                     )
                 """)
-            }
-        }
-
-        val MIGRATION_4_5 = object : Migration(4, 5) {
-            override fun migrate(database: SupportSQLiteDatabase) {
-                database.execSQL("""
-                    CREATE TABLE wallet_new (
-                        id TEXT NOT NULL PRIMARY KEY,
-                        balance REAL NOT NULL,
-                        userEmail TEXT NOT NULL,
-                        FOREIGN KEY(userEmail) REFERENCES users(email) ON DELETE CASCADE
-                    )
-                """)
-                database.execSQL("""
-                    INSERT INTO wallet_new (id, balance, userEmail)
-                    SELECT id, balance, 'user@example.com' FROM wallet
-                """)
-                database.execSQL("DROP TABLE wallet")
-                database.execSQL("ALTER TABLE wallet_new RENAME TO wallet")
             }
         }
     }
 }
+
+@androidx.room.TypeConverters
+object Converters {
+    @androidx.room.TypeConverter
+    fun fromUUID(uuid: UUID?): String? = uuid?.toString()
+
+    @androidx.room.TypeConverter
+    fun toUUID(uuidString: String?): UUID? = uuidString?.let { UUID.fromString(it) }
+}
+

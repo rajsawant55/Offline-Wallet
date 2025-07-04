@@ -2,65 +2,602 @@ package com.hackathon.offlinewallet.data
 
 import android.content.Context
 import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.firstOrNull
+import com.android.identity.util.UUID
+import io.github.jan.supabase.auth.auth
+import io.github.jan.supabase.postgrest.from
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import java.time.OffsetDateTime
 import javax.inject.Inject
 
 class WalletRepository @Inject constructor(
+    private val supabaseClientProvider: SupabaseClientProvider,
     private val walletDao: WalletDao,
-    private val transactionDao: TransactionDao,
+    private val pendingWalletUpdateDao: PendingWalletUpdateDao,
+    private val transactionDao: WalletTransactionDao,
     private val context: Context
 ) {
-    fun getWallet(userEmail: String): Flow<Wallet?> = walletDao.getWallet(userEmail)
 
-    suspend fun insertWallet(wallet: Wallet) {
-        walletDao.insertWallet(wallet)
+    public fun isOnline(): Boolean {
+        val connectivityManager = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+        val network = connectivityManager.activeNetwork ?: return false
+        val capabilities = connectivityManager.getNetworkCapabilities(network) ?: return false
+        return capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
     }
 
-    suspend fun addMoney(userEmail: String, amount: Double) {
-        if (amount <= 0) return
-        val wallet = walletDao.getWallet(userEmail).firstOrNull() ?: Wallet(id = "wallet_$userEmail", balance = 0.0, userEmail = userEmail)
-        walletDao.insertWallet(wallet.copy(balance = wallet.balance + amount))
-        transactionDao.insertTransaction(Transaction(amount = amount, recipient = "Self", type = "ADD", timestamp = System.currentTimeMillis()))
-        scheduleSync()
+    suspend fun getWallet(email: String): Result<Wallet?> = withContext(Dispatchers.IO) {
+        try {
+            if (isOnline()) {
+                val response = supabaseClientProvider.client.from("wallets")
+                    .select { filter { eq("email", email) } }
+                    .decodeSingleOrNull<Map<String, Any>>()
+                val wallet = response?.let {
+                    Wallet(response["user_id"] as String,balance = (it["balance"] as Number).toDouble(), email)
+                }
+                if (wallet != null) {
+                    walletDao.insertWallet(
+                        LocalWallet(
+                            id = response["id"] as String,
+                            userId = response["user_id"] as String,
+                            email = email,
+                            balance = wallet.balance,
+                            createdAt = response["created_at"] as String,
+                            updatedAt = response["updated_at"] as String
+                        )
+                    )
+                }
+                Result.success(wallet)
+            } else {
+                val localWallet = walletDao.getWalletByEmail(email)
+                Result.success(localWallet?.let { Wallet(it.userId, balance = it.balance, it.email) })
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
     }
 
-    suspend fun sendMoney(userEmail: String, amount: Double, recipient: String, type: String = "SEND", isUpi: Boolean = false): Boolean {
-        if (amount <= 0 || recipient.isBlank()) return false
-        val wallet = walletDao.getWallet(userEmail).firstOrNull() ?: return false
-        if (wallet.balance < amount) return false
-        if (isUpi && !isOnline()) return false
+    suspend fun addMoney(email: String, amount: Double): Result<Unit> = withContext(Dispatchers.IO) {
+        try {
+            if (isOnline()) {
+                val client = supabaseClientProvider.client
+                val existingWallet = client.from("wallets")
+                    .select { filter { eq("email", email) } }
+                    .decodeSingleOrNull<Map<String, Any>>()
 
-        walletDao.updateWallet(wallet.copy(balance = wallet.balance - amount))
-        transactionDao.insertTransaction(Transaction(
-            amount = amount,
-            recipient = recipient,
-            type = if (isUpi) "UPI" else type,
-            timestamp = System.currentTimeMillis(),
-            isSynced = !isUpi
-        ))
-        scheduleSync()
-        return true
+                if (existingWallet != null) {
+                    val currentBalance = (existingWallet["balance"] as Number).toDouble()
+                    client.from("wallets").update(
+                        mapOf("balance" to currentBalance + amount)
+                    ) { filter { eq("email", email) } }
+                    walletDao.insertWallet(
+                        LocalWallet(
+                            id = existingWallet["id"] as String,
+                            userId = existingWallet["user_id"] as String,
+                            email = email,
+                            balance = currentBalance + amount,
+                            createdAt = existingWallet["created_at"] as String,
+                            updatedAt = OffsetDateTime.now().toString()
+                        )
+                    )
+                } else {
+                    val userId = client.auth.currentUserOrNull()?.id
+                        ?: return@withContext Result.failure(IllegalStateException("User not authenticated"))
+                    client.from("wallets").insert(
+                        mapOf(
+                            "user_id" to userId,
+                            "email" to email,
+                            "balance" to amount
+                        )
+                    )
+                    val newWallet = client.from("wallets")
+                        .select { filter { eq("email", email) } }
+                        .decodeSingle<Map<String, Any>>()
+                    walletDao.insertWallet(
+                        LocalWallet(
+                            id = newWallet["id"] as String,
+                            userId = userId,
+                            email = email,
+                            balance = amount,
+                            createdAt = newWallet["created_at"] as String,
+                            updatedAt = newWallet["updated_at"] as String
+                        )
+                    )
+                }
+                val workRequest = OneTimeWorkRequestBuilder<SyncWorker>().build()
+                WorkManager.getInstance(context).enqueue(workRequest)
+                Result.success(Unit)
+            } else {
+                val localWallet = walletDao.getWalletByEmail(email)
+                if (localWallet != null) {
+                    walletDao.insertWallet(
+                        localWallet.copy(balance = localWallet.balance + amount, updatedAt = OffsetDateTime.now().toString())
+                    )
+                } else {
+                    walletDao.insertWallet(
+                        LocalWallet(
+                            id = "offline_${email.hashCode()}",
+                            userId = "offline_${email.hashCode()}",
+                            email = email,
+                            balance = amount,
+                            createdAt = OffsetDateTime.now().toString(),
+                            updatedAt = OffsetDateTime.now().toString()
+                        )
+                    )
+                }
+                pendingWalletUpdateDao.insertPendingUpdate(
+                    PendingWalletUpdate(
+                        email = email,
+                        amount = amount,
+                        timestamp = OffsetDateTime.now().toString(),
+                        transactionType = "add",
+                        relatedEmail = email
+                    )
+                )
+                Result.success(Unit)
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
     }
-    fun getTransactionDao(): TransactionDao{
-        return transactionDao
-    }
-    fun getTransactions(): Flow<List<Transaction>> = transactionDao.getAllTransactions()
 
-    suspend fun getUnsyncedTransactions(): Flow<List<Transaction>> = transactionDao.getUnsyncedTransactions()
+    suspend fun sendMoney(senderEmail: String, receiverEmail: String, amount: Double): Result<Unit> = withContext(Dispatchers.IO) {
+        try {
+            if (amount <= 0) return@withContext Result.failure(IllegalArgumentException("Amount must be positive"))
+            if (senderEmail == receiverEmail) return@withContext Result.failure(IllegalArgumentException("Cannot send money to self"))
+            val userId = supabaseClientProvider.client.auth.currentUserOrNull()?.id
+                ?: "offline_${senderEmail.hashCode()}"
+            val transactionId = UUID.randomUUID().toString()
+            val timestamp = OffsetDateTime.now().toString()
 
-    fun isOnline(): Boolean {
-        val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
-        val network = cm.activeNetwork
-        return network != null
+            if (isOnline()) {
+                val client = supabaseClientProvider.client
+                // Check sender wallet
+                val senderWallet = client.from("wallets")
+                    .select { filter { eq("email", senderEmail) } }
+                    .decodeSingleOrNull<Map<String, Any>>()
+                if (senderWallet == null) return@withContext Result.failure(IllegalStateException("Sender wallet not found"))
+                val senderBalance = (senderWallet["balance"] as Number).toDouble()
+                if (senderBalance < amount) return@withContext Result.failure(IllegalStateException("Insufficient balance"))
+
+                // Update sender wallet
+                client.from("wallets").update(
+                    mapOf("balance" to senderBalance - amount)
+                ) { filter { eq("email", senderEmail) } }
+                walletDao.insertWallet(
+                    LocalWallet(
+                        id = senderWallet["id"] as String,
+                        userId = senderWallet["user_id"] as String,
+                        email = senderEmail,
+                        balance = senderBalance - amount,
+                        createdAt = senderWallet["created_at"] as String,
+                        updatedAt = OffsetDateTime.now().toString()
+                    )
+                )
+
+                // Update or create receiver wallet
+                val receiverWallet = client.from("wallets")
+                    .select { filter { eq("email", receiverEmail) } }
+                    .decodeSingleOrNull<Map<String, Any>>()
+                if (receiverWallet != null) {
+                    val receiverBalance = (receiverWallet["balance"] as Number).toDouble()
+                    client.from("wallets").update(
+                        mapOf("balance" to receiverBalance + amount)
+                    ) { filter { eq("email", receiverEmail) } }
+                    walletDao.insertWallet(
+                        LocalWallet(
+                            id = receiverWallet["id"] as String,
+                            userId = receiverWallet["user_id"] as String,
+                            email = receiverEmail,
+                            balance = receiverBalance + amount,
+                            createdAt = receiverWallet["created_at"] as String,
+                            updatedAt = OffsetDateTime.now().toString()
+                        )
+                    )
+                } else {
+                    val receiverUser = client.from("users")
+                        .select { filter { eq("email", receiverEmail) } }
+                        .decodeSingleOrNull<Map<String, Any>>()
+                    if (receiverUser == null) return@withContext Result.failure(IllegalStateException("Receiver not found"))
+                    val receiverUserId = receiverUser["id"] as String
+                    client.from("wallets").insert(
+                        mapOf(
+                            "user_id" to receiverUserId,
+                            "email" to receiverEmail,
+                            "balance" to amount
+                        )
+                    )
+                    val newWallet = client.from("wallets")
+                        .select { filter { eq("email", receiverEmail) } }
+                        .decodeSingle<Map<String, Any>>()
+                    walletDao.insertWallet(
+                        LocalWallet(
+                            id = newWallet["id"] as String,
+                            userId = receiverUserId,
+                            email = receiverEmail,
+                            balance = amount,
+                            createdAt = newWallet["created_at"] as String,
+                            updatedAt = newWallet["updated_at"] as String
+                        )
+                    )
+                }
+                // Insert transactions for both sender and receiver
+                client.from("transactions").insert(
+                    mapOf(
+                        "id" to transactionId,
+                        "user_id" to userId,
+                        "sender_email" to senderEmail,
+                        "receiver_email" to receiverEmail,
+                        "amount" to amount,
+                        "type" to "send",
+                        "timestamp" to timestamp,
+                        "status" to "completed"
+                    )
+                )
+                client.from("transactions").insert(
+                    mapOf(
+                        "id" to UUID.randomUUID().toString(),
+                        "user_id" to receiverWallet?.get("user_id"),
+                        "sender_email" to senderEmail,
+                        "receiver_email" to receiverEmail,
+                        "amount" to amount,
+                        "type" to "receive",
+                        "timestamp" to timestamp,
+                        "status" to "completed"
+                    )
+                )
+                transactionDao.insertTransaction(
+                    WalletTransactions(
+                        id = transactionId,
+                        userId = userId,
+                        senderEmail = senderEmail,
+                        receiverEmail = receiverEmail,
+                        amount = amount,
+                        type = "send",
+                        timestamp = timestamp,
+                        status = "completed"
+                    )
+                )
+                transactionDao.insertTransaction(
+                    WalletTransactions(
+                        id = UUID.randomUUID().toString(),
+                        userId = receiverWallet?.get("user_id") as? String ?: "offline_${receiverEmail.hashCode()}",
+                        senderEmail = senderEmail,
+                        receiverEmail = receiverEmail,
+                        amount = amount,
+                        type = "receive",
+                        timestamp = timestamp,
+                        status = "completed"
+                    )
+                )
+
+                val workRequest = OneTimeWorkRequestBuilder<SyncWorker>().build()
+                WorkManager.getInstance(context).enqueue(workRequest)
+                Result.success(Unit)
+            } else {
+                // Offline: Update sender wallet
+                val senderWallet = walletDao.getWalletByEmail(senderEmail)
+                if (senderWallet == null) return@withContext Result.failure(IllegalStateException("Sender wallet not found"))
+                if (senderWallet.balance < amount) return@withContext Result.failure(IllegalStateException("Insufficient balance"))
+                walletDao.insertWallet(
+                    senderWallet.copy(balance = senderWallet.balance - amount, updatedAt = OffsetDateTime.now().toString())
+                )
+
+                // Offline: Update or create receiver wallet
+                val receiverWallet = walletDao.getWalletByEmail(receiverEmail)
+                if (receiverWallet != null) {
+                    walletDao.insertWallet(
+                        receiverWallet.copy(balance = receiverWallet.balance + amount, updatedAt = OffsetDateTime.now().toString())
+                    )
+                } else {
+                    walletDao.insertWallet(
+                        LocalWallet(
+                            id = "offline_${receiverEmail.hashCode()}",
+                            userId = "offline_${receiverEmail.hashCode()}",
+                            email = receiverEmail,
+                            balance = amount,
+                            createdAt = OffsetDateTime.now().toString(),
+                            updatedAt = OffsetDateTime.now().toString()
+                        )
+                    )
+                }
+
+                // Queue transaction for sync
+                pendingWalletUpdateDao.insertPendingUpdate(
+                    PendingWalletUpdate(
+                        email = senderEmail,
+                        amount = -amount, // Negative for sender
+                        timestamp = OffsetDateTime.now().toString(),
+                        transactionType = "send",
+                        relatedEmail = receiverEmail
+                    )
+                )
+                pendingWalletUpdateDao.insertPendingUpdate(
+                    PendingWalletUpdate(
+                        email = receiverEmail,
+                        amount = amount, // Positive for receiver
+                        timestamp = OffsetDateTime.now().toString(),
+                        transactionType = "receive",
+                        relatedEmail = senderEmail
+                    )
+                )
+
+                // Insert transactions
+                transactionDao.insertTransaction(
+                    WalletTransactions(
+                        id = transactionId,
+                        userId = userId,
+                        senderEmail = senderEmail,
+                        receiverEmail = receiverEmail,
+                        amount = amount,
+                        type = "send",
+                        timestamp = timestamp,
+                        status = "pending"
+                    )
+                )
+                transactionDao.insertTransaction(
+                    WalletTransactions(
+                        id = UUID.randomUUID().toString(),
+                        userId = "offline_${receiverEmail.hashCode()}",
+                        senderEmail = senderEmail,
+                        receiverEmail = receiverEmail,
+                        amount = amount,
+                        type = "receive",
+                        timestamp = timestamp,
+                        status = "pending"
+                    )
+                )
+                Result.success(Unit)
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
     }
 
-    private fun scheduleSync() {
-        val syncRequest = OneTimeWorkRequestBuilder<SyncWorker>()
-            .setConstraints(androidx.work.Constraints.Builder().setRequiredNetworkType(androidx.work.NetworkType.CONNECTED).build())
-            .build()
-        WorkManager.getInstance(context).enqueue(syncRequest)
+    suspend fun receiveMoney(receiverEmail: String, senderEmail: String, amount: Double): Result<Unit> = withContext(Dispatchers.IO) {
+        try {
+            if (amount <= 0) return@withContext Result.failure(IllegalArgumentException("Amount must be positive"))
+            if (senderEmail == receiverEmail) return@withContext Result.failure(IllegalArgumentException("Cannot receive money from self"))
+
+            val userId = supabaseClientProvider.client.auth.currentUserOrNull()?.id
+                ?: "offline_${receiverEmail.hashCode()}"
+            val transactionId = UUID.randomUUID().toString()
+            val timestamp = OffsetDateTime.now().toString()
+
+            if (isOnline()) {
+                val client = supabaseClientProvider.client
+                // Verify sender exists
+                val senderWallet = client.from("wallets")
+                    .select { filter { eq("email", senderEmail) } }
+                    .decodeSingleOrNull<Map<String, Any>>()
+                if (senderWallet == null) return@withContext Result.failure(IllegalStateException("Sender not found"))
+                val senderBalance = (senderWallet["balance"] as Number).toDouble()
+                if (senderBalance < amount) return@withContext Result.failure(IllegalStateException("Sender has insufficient balance"))
+
+                // Update sender wallet
+                client.from("wallets").update(
+                    mapOf("balance" to senderBalance - amount)
+                ) { filter { eq("email", senderEmail) } }
+                walletDao.insertWallet(
+                    LocalWallet(
+                        id = senderWallet["id"] as String,
+                        userId = senderWallet["user_id"] as String,
+                        email = senderEmail,
+                        balance = senderBalance - amount,
+                        createdAt = senderWallet["created_at"] as String,
+                        updatedAt = OffsetDateTime.now().toString()
+                    )
+                )
+
+                // Update or create receiver wallet
+                val receiverWallet = client.from("wallets")
+                    .select { filter { eq("email", receiverEmail) } }
+                    .decodeSingleOrNull<Map<String, Any>>()
+                if (receiverWallet != null) {
+                    val receiverBalance = (receiverWallet["balance"] as Number).toDouble()
+                    client.from("wallets").update(
+                        mapOf("balance" to receiverBalance + amount)
+                    ) { filter { eq("email", receiverEmail) } }
+                    walletDao.insertWallet(
+                        LocalWallet(
+                            id = receiverWallet["id"] as String,
+                            userId = receiverWallet["user_id"] as String,
+                            email = receiverEmail,
+                            balance = receiverBalance + amount,
+                            createdAt = receiverWallet["created_at"] as String,
+                            updatedAt = OffsetDateTime.now().toString()
+                        )
+                    )
+                } else {
+                    val receiverUser = client.from("users")
+                        .select { filter { eq("email", receiverEmail) } }
+                        .decodeSingleOrNull<Map<String, Any>>()
+                    if (receiverUser == null) return@withContext Result.failure(IllegalStateException("Receiver not found"))
+                    val receiverUserId = receiverUser["id"] as String
+                    client.from("wallets").insert(
+                        mapOf(
+                            "user_id" to receiverUserId,
+                            "email" to receiverEmail,
+                            "balance" to amount
+                        )
+                    )
+                    val newWallet = client.from("wallets")
+                        .select { filter { eq("email", receiverEmail) } }
+                        .decodeSingle<Map<String, Any>>()
+                    walletDao.insertWallet(
+                        LocalWallet(
+                            id = newWallet["id"] as String,
+                            userId = receiverUserId,
+                            email = receiverEmail,
+                            balance = amount,
+                            createdAt = newWallet["created_at"] as String,
+                            updatedAt = newWallet["updated_at"] as String
+                        )
+                    )
+                }
+
+                // Insert transactions
+                client.from("transactions").insert(
+                    mapOf(
+                        "id" to transactionId,
+                        "user_id" to userId,
+                        "sender_email" to senderEmail,
+                        "receiver_email" to receiverEmail,
+                        "amount" to amount,
+                        "type" to "receive",
+                        "timestamp" to timestamp,
+                        "status" to "completed"
+                    )
+                )
+                client.from("transactions").insert(
+                    mapOf(
+                        "id" to UUID.randomUUID().toString(),
+                        "user_id" to senderWallet["user_id"],
+                        "sender_email" to senderEmail,
+                        "receiver_email" to receiverEmail,
+                        "amount" to amount,
+                        "type" to "send",
+                        "timestamp" to timestamp,
+                        "status" to "completed"
+                    )
+                )
+                transactionDao.insertTransaction(
+                    WalletTransactions(
+                        id = transactionId,
+                        userId = userId,
+                        senderEmail = senderEmail,
+                        receiverEmail = receiverEmail,
+                        amount = amount,
+                        type = "receive",
+                        timestamp = timestamp,
+                        status = "completed"
+                    )
+                )
+                transactionDao.insertTransaction(
+                    WalletTransactions(
+                        id = UUID.randomUUID().toString(),
+                        userId = senderWallet["user_id"] as String,
+                        senderEmail = senderEmail,
+                        receiverEmail = receiverEmail,
+                        amount = amount,
+                        type = "send",
+                        timestamp = timestamp,
+                        status = "completed"
+                    )
+                )
+
+                val workRequest = OneTimeWorkRequestBuilder<SyncWorker>().build()
+                WorkManager.getInstance(context).enqueue(workRequest)
+                Result.success(Unit)
+            } else {
+                // Offline: Update sender wallet
+                val senderWallet = walletDao.getWalletByEmail(senderEmail)
+                if (senderWallet == null) return@withContext Result.failure(IllegalStateException("Sender not found"))
+                if (senderWallet.balance < amount) return@withContext Result.failure(IllegalStateException("Sender has insufficient balance"))
+                walletDao.insertWallet(
+                    senderWallet.copy(balance = senderWallet.balance - amount, updatedAt = OffsetDateTime.now().toString())
+                )
+
+                // Offline: Update or create receiver wallet
+                val receiverWallet = walletDao.getWalletByEmail(receiverEmail)
+                if (receiverWallet != null) {
+                    walletDao.insertWallet(
+                        receiverWallet.copy(balance = receiverWallet.balance + amount, updatedAt = OffsetDateTime.now().toString())
+                    )
+                } else {
+                    walletDao.insertWallet(
+                        LocalWallet(
+                            id = "offline_${receiverEmail.hashCode()}",
+                            userId = "offline_${receiverEmail.hashCode()}",
+                            email = receiverEmail,
+                            balance = amount,
+                            createdAt = OffsetDateTime.now().toString(),
+                            updatedAt = OffsetDateTime.now().toString()
+                        )
+                    )
+                }
+
+                // Queue transaction for sync
+                pendingWalletUpdateDao.insertPendingUpdate(
+                    PendingWalletUpdate(
+                        email = senderEmail,
+                        amount = -amount,
+                        timestamp = OffsetDateTime.now().toString(),
+                        transactionType = "send",
+                        relatedEmail = receiverEmail
+                    )
+                )
+                pendingWalletUpdateDao.insertPendingUpdate(
+                    PendingWalletUpdate(
+                        email = receiverEmail,
+                        amount = amount,
+                        timestamp = OffsetDateTime.now().toString(),
+                        transactionType = "receive",
+                        relatedEmail = senderEmail
+                    )
+                )
+
+                // Insert transactions
+                transactionDao.insertTransaction(
+                    WalletTransactions(
+                        id = transactionId,
+                        userId = userId,
+                        senderEmail = senderEmail,
+                        receiverEmail = receiverEmail,
+                        amount = amount,
+                        type = "receive",
+                        timestamp = timestamp,
+                        status = "pending"
+                    )
+                )
+                transactionDao.insertTransaction(
+                    WalletTransactions(
+                        id = UUID.randomUUID().toString(),
+                        userId = "offline_${senderEmail.hashCode()}",
+                        senderEmail = senderEmail,
+                        receiverEmail = receiverEmail,
+                        amount = amount,
+                        type = "send",
+                        timestamp = timestamp,
+                        status = "pending"
+                    )
+                )
+                Result.success(Unit)
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
     }
+    suspend fun getTransactions(userId: String): Result<List<WalletTransactions>> = withContext(Dispatchers.IO) {
+        try {
+            if (isOnline()) {
+                val client = supabaseClientProvider.client
+                val response = client.from("transactions")
+                    .select { filter { eq("user_id", userId) } }
+                    .decodeList<Map<String, Any>>()
+                val transactions = response.map {
+                    WalletTransactions(
+                        id = it["id"] as String,
+                        userId = it["user_id"] as String,
+                        senderEmail = it["sender_email"] as String,
+                        receiverEmail = it["receiver_email"] as String,
+                        amount = (it["amount"] as Number).toDouble(),
+                        type = it["type"] as String,
+                        timestamp = it["timestamp"] as String,
+                        status = it["status"] as String
+                    )
+                }
+                transactions.forEach { transactionDao.insertTransaction(it) }
+                Result.success(transactions)
+            } else {
+                val transactions = transactionDao.getTransactionsByUserId(userId)
+                Result.success(transactions)
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
 }

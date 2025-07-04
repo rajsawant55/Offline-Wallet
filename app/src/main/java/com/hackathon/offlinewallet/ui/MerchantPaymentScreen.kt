@@ -9,7 +9,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.scale
-import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -19,8 +18,8 @@ import kotlinx.coroutines.launch
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MerchantPaymentScreen(navController: NavController, authViewModel: AuthViewModel, walletViewModel: WalletViewModel = hiltViewModel()) {
+    var merchantEmail by remember { mutableStateOf("") }
     var amount by remember { mutableStateOf("") }
-    var merchantId by remember { mutableStateOf("") }
     var isLoading by remember { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
     val haptic = LocalHapticFeedback.current
@@ -51,11 +50,19 @@ fun MerchantPaymentScreen(navController: NavController, authViewModel: AuthViewM
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Text(
-                        text = "Pay Merchant",
+                        text = "Pay to Merchant",
                         style = MaterialTheme.typography.headlineMedium,
                         color = MaterialTheme.colorScheme.primary
                     )
                     Spacer(modifier = Modifier.height(24.dp))
+                    OutlinedTextField(
+                        value = merchantEmail,
+                        onValueChange = { merchantEmail = it },
+                        label = { Text("Merchant Email") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
                     OutlinedTextField(
                         value = amount,
                         onValueChange = { amount = it },
@@ -63,45 +70,34 @@ fun MerchantPaymentScreen(navController: NavController, authViewModel: AuthViewM
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true
                     )
-                    Spacer(modifier = Modifier.height(16.dp))
-                    OutlinedTextField(
-                        value = merchantId,
-                        onValueChange = { merchantId = it },
-                        label = { Text("Merchant ID") },
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true
-                    )
                     Spacer(modifier = Modifier.height(24.dp))
                     Button(
                         onClick = {
-                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                            haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
                             isLoading = true
-                            coroutineScope.launch {
-                                val amountDouble = amount.toDoubleOrNull()
-                                if (amountDouble != null && amountDouble > 0 && merchantId.isNotBlank()) {
-                                    val userEmail = authViewModel.getCurrentUserEmail()
-                                    if (userEmail == null) {
-                                        snackbarHostState.showSnackbar("User not logged in")
-                                        isLoading = false
-                                        return@launch
-                                    }
-                                    if (walletViewModel.sendMoney(userEmail, amountDouble, merchantId, true)) {
-                                        snackbarHostState.showSnackbar("₹$amount paid to merchant")
-                                        navController.popBackStack()
+                            val amountDouble = amount.toDoubleOrNull()
+                            if (amountDouble != null && amountDouble > 0 && merchantEmail.isNotBlank()) {
+                                val senderEmail = authViewModel.getCurrentUserEmail() ?: return@Button
+                                walletViewModel.sendMoney(senderEmail, merchantEmail, amountDouble) { error ->
+                                    isLoading = false
+                                    if (error == null) {
+                                        coroutineScope.launch {
+                                            snackbarHostState.showSnackbar("₹$amount paid to $merchantEmail successfully")
+                                            navController.popBackStack()
+                                        }
                                     } else {
-                                        snackbarHostState.showSnackbar("Payment failed")
+                                        coroutineScope.launch {
+                                            snackbarHostState.showSnackbar(error)
+                                        }
                                     }
-                                } else {
-                                    snackbarHostState.showSnackbar("Please enter valid amount and merchant ID")
                                 }
+                            } else {
                                 isLoading = false
+                                coroutineScope.launch {
+                                    snackbarHostState.showSnackbar("Please enter a valid email and amount")
+                                }
                             }
                         },
-
-
-
-
-
                         modifier = Modifier
                             .fillMaxWidth()
                             .scale(scale)
@@ -115,7 +111,7 @@ fun MerchantPaymentScreen(navController: NavController, authViewModel: AuthViewM
                                 color = MaterialTheme.colorScheme.onPrimary
                             )
                         } else {
-                            Text("Pay")
+                            Text("Pay Merchant")
                         }
                     }
                 }

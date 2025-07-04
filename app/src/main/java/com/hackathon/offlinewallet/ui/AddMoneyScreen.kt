@@ -24,8 +24,8 @@ fun AddMoneyScreen(navController: NavController, authViewModel: AuthViewModel, w
     val haptic = LocalHapticFeedback.current
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()
-    val scope = rememberCoroutineScope()
     val scale by animateFloatAsState(if (isPressed) 0.95f else 1f)
+    val scope = rememberCoroutineScope()
 
     Scaffold(
         topBar = { TopAppBar(title = { Text("Add Money") }) },
@@ -69,17 +69,25 @@ fun AddMoneyScreen(navController: NavController, authViewModel: AuthViewModel, w
                             val amountDouble = amount.toDoubleOrNull()
                             if (amountDouble != null && amountDouble > 0) {
                                 val userEmail = authViewModel.getCurrentUserEmail() ?: return@Button
-                                walletViewModel.addMoney(userEmail, amountDouble)
-                                scope.launch {
-                                    snackbarHostState.showSnackbar("₹$amount added successfully")
-                                    navController.popBackStack()
+                                walletViewModel.addMoney(userEmail, amountDouble) { error ->
+                                    isLoading = false
+                                    if (error == null) {
+                                        scope.launch {
+                                            snackbarHostState.showSnackbar("₹$amount added successfully")
+                                            navController.popBackStack()
+                                        }
+                                    } else {
+                                        scope.launch {
+                                            snackbarHostState.showSnackbar(error)
+                                        }
+                                    }
                                 }
                             } else {
+                                isLoading = false
                                 scope.launch {
                                     snackbarHostState.showSnackbar("Please enter a valid amount")
                                 }
                             }
-                            isLoading = false // Should be set to false after the operation completes
                         },
                         modifier = Modifier
                             .fillMaxWidth()

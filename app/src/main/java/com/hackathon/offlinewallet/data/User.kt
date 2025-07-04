@@ -5,8 +5,7 @@ import androidx.room.PrimaryKey
 
 @Entity(tableName = "users")
 data class User(
-    @PrimaryKey val email: String,
+    @PrimaryKey val id: String,
     val username: String,
-    val passwordHash: String, // Hashed password
-    val jwtToken: String? = null // Stored JWT for offline use
+    val email: String, // Hashed password
 )

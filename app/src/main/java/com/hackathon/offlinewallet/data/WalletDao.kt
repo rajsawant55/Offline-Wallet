@@ -3,17 +3,15 @@ package com.hackathon.offlinewallet.data
 import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.Query
-import androidx.room.Update
-import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface WalletDao {
-    @Query("SELECT * FROM wallet WHERE userEmail = :userEmail")
-    fun getWallet(userEmail: String): Flow<Wallet?>
+    @Query("SELECT * FROM LocalWallet WHERE email = :email")
+    suspend fun getWalletByEmail(email: String): LocalWallet?
 
-    @Insert
-    suspend fun insertWallet(wallet: Wallet)
+    @Insert(onConflict = androidx.room.OnConflictStrategy.REPLACE)
+    suspend fun insertWallet(wallet: LocalWallet)
 
-    @Update
-    suspend fun updateWallet(wallet: Wallet)
+    @Query("DELETE FROM LocalWallet WHERE email = :email")
+    suspend fun deleteWallet(email: String)
 }

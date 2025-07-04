@@ -2,11 +2,13 @@ package com.hackathon.offlinewallet.di
 
 import android.content.Context
 import androidx.room.Room
-import com.google.firebase.auth.FirebaseAuth
-import com.google.firebase.firestore.FirebaseFirestore
 import com.hackathon.offlinewallet.data.AppDatabase
-import com.hackathon.offlinewallet.data.WalletRepository
 import com.hackathon.offlinewallet.data.AuthRepository
+import com.hackathon.offlinewallet.data.PendingWalletUpdateDao
+import com.hackathon.offlinewallet.data.WalletTransactionDao
+import com.hackathon.offlinewallet.data.SupabaseClientProvider
+import com.hackathon.offlinewallet.data.WalletDao
+import com.hackathon.offlinewallet.data.WalletRepository
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -19,21 +21,58 @@ import javax.inject.Singleton
 object AppModule {
     @Provides
     @Singleton
-    fun provideDatabase(@ApplicationContext context: Context): AppDatabase {
-        return Room.databaseBuilder(context, AppDatabase::class.java, "wallet_db")
-            .addMigrations(AppDatabase.MIGRATION_1_2, AppDatabase.MIGRATION_2_3, AppDatabase.MIGRATION_3_4, AppDatabase.MIGRATION_4_5)
+    fun provideSupabaseClientProvider(): SupabaseClientProvider {
+        return SupabaseClientProvider()
+    }
+
+    @Provides
+    @Singleton
+    fun provideAppDatabase(@ApplicationContext context: Context): AppDatabase {
+        return Room.databaseBuilder(
+            context,
+            AppDatabase::class.java,
+            "offline-wallet-db"
+        )
+            .addMigrations(AppDatabase.MIGRATION_1_2, AppDatabase.MIGRATION_2_3)
             .build()
     }
 
     @Provides
     @Singleton
-    fun provideWalletRepository(db: AppDatabase, @ApplicationContext context: Context): WalletRepository {
-        return WalletRepository(db.walletDao(), db.transactionDao(), context)
+    fun provideUserDao(database: AppDatabase): com.hackathon.offlinewallet.data.UserDao = database.userDao()
+
+    @Provides
+    @Singleton
+    fun provideWalletDao(database: AppDatabase): com.hackathon.offlinewallet.data.WalletDao = database.walletDao()
+
+    @Provides
+    @Singleton
+    fun providePendingWalletUpdateDao(database: AppDatabase): com.hackathon.offlinewallet.data.PendingWalletUpdateDao = database.pendingWalletUpdateDao()
+
+    @Provides
+    @Singleton
+    fun provideWalletTransactionDao(database: AppDatabase): com.hackathon.offlinewallet.data.WalletTransactionDao = database.walletTransactionDao()
+
+    @Provides
+    @Singleton
+    fun provideAuthRepository(
+        supabaseClientProvider: SupabaseClientProvider,
+        userDao: com.hackathon.offlinewallet.data.UserDao,
+        @ApplicationContext context: Context
+    ): AuthRepository {
+        return AuthRepository(supabaseClientProvider, userDao, context)
     }
 
     @Provides
     @Singleton
-    fun provideAuthRepository(db: AppDatabase, @ApplicationContext context: Context): AuthRepository {
-        return AuthRepository(db.userDao(), db.walletDao(), context, FirebaseAuth.getInstance(), FirebaseFirestore.getInstance())
+    fun provideWalletRepository(
+        supabaseClientProvider: SupabaseClientProvider,
+        walletDao: WalletDao,
+        pendingWalletUpdateDao: PendingWalletUpdateDao,
+        walletTransactionDao: WalletTransactionDao,
+        @ApplicationContext context: Context
+
+    ): WalletRepository {
+        return WalletRepository(supabaseClientProvider, walletDao, pendingWalletUpdateDao,walletTransactionDao, context)
     }
 }

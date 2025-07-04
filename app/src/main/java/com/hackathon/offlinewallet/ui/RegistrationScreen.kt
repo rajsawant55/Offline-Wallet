@@ -1,16 +1,10 @@
 package com.hackathon.offlinewallet.ui
 
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.scale
-import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -23,12 +17,8 @@ fun RegistrationScreen(navController: NavController, authViewModel: AuthViewMode
     var username by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var isLoading by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
-    val haptic = LocalHapticFeedback.current
-    val interactionSource = remember { MutableInteractionSource() }
-    val isPressed by interactionSource.collectIsPressedAsState()
-    val coroutineScope = rememberCoroutineScope()
-    val scale by animateFloatAsState(if (isPressed) 0.95f else 1f)
 
     Scaffold(
         snackbarHost = { SnackbarHost(hostState = snackbarHostState) }
@@ -57,16 +47,6 @@ fun RegistrationScreen(navController: NavController, authViewModel: AuthViewMode
                         color = MaterialTheme.colorScheme.primary
                     )
                     Spacer(modifier = Modifier.height(24.dp))
-
-                    OutlinedTextField(
-                        value = email,
-                        onValueChange = { email = it },
-                        label = { Text("Email") },
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true
-                    )
-                    Spacer(modifier = Modifier.height(16.dp))
-
                     OutlinedTextField(
                         value = username,
                         onValueChange = { username = it },
@@ -75,7 +55,14 @@ fun RegistrationScreen(navController: NavController, authViewModel: AuthViewMode
                         singleLine = true
                     )
                     Spacer(modifier = Modifier.height(16.dp))
-
+                    OutlinedTextField(
+                        value = email,
+                        onValueChange = { email = it },
+                        label = { Text("Email") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
                     OutlinedTextField(
                         value = password,
                         onValueChange = { password = it },
@@ -85,31 +72,23 @@ fun RegistrationScreen(navController: NavController, authViewModel: AuthViewMode
                         singleLine = true
                     )
                     Spacer(modifier = Modifier.height(24.dp))
-
                     Button(
                         onClick = {
-                            haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
                             isLoading = true
-                            authViewModel.register(email, username, password) { result ->
+                            authViewModel.signUp(email, password, username) { success, error ->
                                 isLoading = false
-                                result.onSuccess {
+                                if (success) {
                                     navController.navigate("home") {
-                                        popUpTo("login") { inclusive = true }
+                                        popUpTo(navController.graph.startDestinationId) { inclusive = true }
                                     }
-                                }.onFailure { exception ->
-                                    coroutineScope.launch {
-                                        snackbarHostState.showSnackbar(
-                                            exception.message ?: "Registration failed. Please check your device settings."
-                                        )
+                                } else {
+                                    scope.launch {
+                                        snackbarHostState.showSnackbar(error ?: "Registration failed. Please try again.")
                                     }
                                 }
                             }
                         },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .scale(scale)
-                            .height(48.dp),
-                        interactionSource = interactionSource,
+                        modifier = Modifier.fillMaxWidth(),
                         enabled = !isLoading
                     ) {
                         if (isLoading) {
@@ -122,15 +101,9 @@ fun RegistrationScreen(navController: NavController, authViewModel: AuthViewMode
                         }
                     }
                     Spacer(modifier = Modifier.height(16.dp))
-
-                    Text(
-                        text = "Already have an account? Login",
-                        modifier = Modifier.clickable {
-                            navController.navigate("login")
-                        },
-                        color = MaterialTheme.colorScheme.primary,
-                        style = MaterialTheme.typography.bodyMedium
-                    )
+                    TextButton(onClick = { navController.navigate("login") }) {
+                        Text("Already have an account? Login")
+                    }
                 }
             }
         }

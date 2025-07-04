@@ -1,58 +1,102 @@
 package com.hackathon.offlinewallet.ui
 
-import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.hackathon.offlinewallet.data.AuthRepository
+import com.hackathon.offlinewallet.data.SupabaseClientProvider
 import com.hackathon.offlinewallet.data.User
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.flow.SharingStarted
+import io.github.jan.supabase.auth.auth
+import io.github.jan.supabase.postgrest.from
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 @HiltViewModel
 class AuthViewModel @Inject constructor(
-    private val authRepository: AuthRepository
+    private val supabaseClientProvider: SupabaseClientProvider, private val authRepository: AuthRepository
 ) : ViewModel() {
-    fun getUser(email: String): StateFlow<User?> {
-        return authRepository.getUser(email).stateIn(viewModelScope, SharingStarted.Lazily, null)
-    }
 
-    fun getCurrentUserEmail(): String? {
-        return authRepository.getCurrentUserEmail()
-    }
+    private val _user = MutableStateFlow<User?>(null)
+    val user: StateFlow<User?> = _user
 
-    fun resolveIdentifierToEmail(identifier: String, onResult: (Result<String>) -> Unit) {
+    public fun getSupabaseClient():  SupabaseClientProvider {
+        return supabaseClientProvider
+    }
+    init {
+        // Check for existing session
         viewModelScope.launch {
-            val email = authRepository.resolveIdentifierToEmail(identifier)
-            onResult(email)
-        }
-    }
-
-    fun register(email: String, username: String, password: String, onResult: (Result<String>) -> Unit) {
-        viewModelScope.launch {
-            val result = authRepository.register(email, username, password)
-            onResult(result)
-        }
-    }
-
-    fun login(email: String, password: String, activity: FragmentActivity, onResult: (Result<String>) -> Unit) {
-        viewModelScope.launch {
-            authRepository.login(email, password, activity) { biometricPrompt ->
-                // Handle biometric prompt if needed
-            }.also { result ->
-                onResult(result)
+            val session = supabaseClientProvider.client.auth.currentSessionOrNull()
+            if (session != null) {
+                fetchUserData(session.user?.email ?: "")
             }
         }
     }
 
-    fun isLoggedIn(): Boolean {
-        return authRepository.isLoggedIn()
+    fun signUp(email: String, password: String, username: String, onResult: (Boolean, String?) -> Unit) {
+        viewModelScope.launch {
+            try {
+                authRepository.signUp(email, password, username)
+                fetchUserData(email)
+                onResult(true, null)
+            } catch (e: Exception) {
+                onResult(false, e.message)
+            }
+        }
     }
 
-    fun logout() {
-        authRepository.logout()
+    fun login(email: String, password: String, onResult: (Boolean, String?) -> Unit) {
+        viewModelScope.launch {
+            try {
+                authRepository.login(email, password)
+                fetchUserData(email)
+                onResult(true, null)
+            } catch (e: Exception) {
+                onResult(false, e.message)
+            }
+        }
+    }
+
+    fun signOut(onResult: (Boolean) -> Unit) {
+        viewModelScope.launch {
+            try {
+                supabaseClientProvider.client.auth.signOut()
+                _user.value = null
+                onResult(true)
+            } catch (e: Exception) {
+                onResult(false)
+            }
+        }
+    }
+
+    fun getCurrentUserEmail(): String? {
+        return supabaseClientProvider.client.auth.currentUserOrNull()?.email
+    }
+
+    fun getUser(email: String): StateFlow<User?> {
+        viewModelScope.launch {
+            fetchUserData(email)
+        }
+        return user
+    }
+
+    private suspend fun fetchUserData(email: String) {
+        try {
+            val response = supabaseClientProvider.client.from("users")
+                .select {
+                    filter { eq("email", email) }
+                }
+                .decodeSingleOrNull<Map<String, Any>>()
+            response?.let {
+                _user.value = User(
+                    id = it["id"] as? String ?: "",
+                    email = it["email"] as? String ?: "",
+                    username = it["username"] as? String ?: ""
+                )
+            }
+        } catch (e: Exception) {
+            _user.value = null
+        }
     }
 }
