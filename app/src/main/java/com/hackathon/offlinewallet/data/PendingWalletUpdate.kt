@@ -1,8 +1,10 @@
 package com.hackathon.offlinewallet.data
 
 import androidx.room.Entity
+import kotlinx.serialization.Serializable
 
 @Entity
+@Serializable
 data class PendingWalletUpdate(
     @androidx.room.PrimaryKey(autoGenerate = true) val updateId: Long = 0,
     val email: String,

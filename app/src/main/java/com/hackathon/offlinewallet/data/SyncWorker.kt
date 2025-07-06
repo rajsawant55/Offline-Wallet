@@ -20,6 +20,7 @@ class SyncWorker(
     override suspend fun doWork(): Result = withContext(Dispatchers.IO) {
         try {
             val client = supabaseClientProvider.client
+            val currentUserId = client.auth.currentUserOrNull()?.id ?: ""
 
             // Sync pending wallet updates
             val pendingUpdates = pendingWalletUpdateDao.getAllPendingUpdates()
@@ -87,9 +88,7 @@ class SyncWorker(
             }
 
             // Sync pending transactions
-            val pendingTransactions = walletTransactionDao.getPendingTransactionsByUserId(
-                userId = supabaseClientProvider.client.auth.currentUserOrNull()?.id ?: ""
-            )
+            val pendingTransactions = walletTransactionDao.getPendingTransactionsByUserId(currentUserId)
             for (transaction in pendingTransactions) {
                 val relatedEmail = if (transaction.type == "send") transaction.receiverEmail else transaction.senderEmail
                 val relatedUser = client.from("users")

@@ -4,7 +4,7 @@ plugins {
     alias(libs.plugins.hilt.android)
     alias(libs.plugins.kotlin.ksp)
     alias(libs.plugins.compose.compiler)
-
+    alias(libs.plugins.kotlinx.serialization)
 }
 ksp {
     arg("room.schemaLocation", "$projectDir/schemas")
@@ -91,4 +91,6 @@ dependencies {
     implementation(libs.androidx.compose.material.icons)
     implementation(libs.androidx.compose.animation)
     implementation(libs.ktor.client.core)
+    implementation(libs.zxing.android.embedded)
+    implementation(libs.kotlinx.serialization.json)
 }

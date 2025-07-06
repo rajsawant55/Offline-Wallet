@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.room.Room
 import com.hackathon.offlinewallet.data.AppDatabase
 import com.hackathon.offlinewallet.data.AuthRepository
+import com.hackathon.offlinewallet.data.BluetoothService
 import com.hackathon.offlinewallet.data.PendingWalletUpdateDao
 import com.hackathon.offlinewallet.data.WalletTransactionDao
 import com.hackathon.offlinewallet.data.SupabaseClientProvider
@@ -58,9 +59,10 @@ object AppModule {
     fun provideAuthRepository(
         supabaseClientProvider: SupabaseClientProvider,
         userDao: com.hackathon.offlinewallet.data.UserDao,
+        walletDao: WalletDao,
         @ApplicationContext context: Context
     ): AuthRepository {
-        return AuthRepository(supabaseClientProvider, userDao, context)
+        return AuthRepository(supabaseClientProvider, userDao, context, walletDao)
     }
 
     @Provides
@@ -73,6 +75,15 @@ object AppModule {
         @ApplicationContext context: Context
 
     ): WalletRepository {
-        return WalletRepository(supabaseClientProvider, walletDao, pendingWalletUpdateDao,walletTransactionDao, context)
+        return WalletRepository(supabaseClientProvider, walletDao, pendingWalletUpdateDao, walletTransactionDao, context)
+    }
+
+    @Provides
+    @Singleton
+    fun provideBluetoothService(
+        @ApplicationContext context: Context,
+        walletRepository: WalletRepository
+    ): BluetoothService {
+        return BluetoothService(context, walletRepository)
     }
 }

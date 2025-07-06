@@ -3,9 +3,12 @@ package com.hackathon.offlinewallet.data
 import android.content.Context
 import androidx.hilt.work.HiltWorkerFactory
 import androidx.work.Configuration
+import androidx.work.ListenableWorker
 import androidx.work.WorkerFactory
+import androidx.work.WorkerParameters
 import dagger.Module
 import dagger.Provides
+import dagger.assisted.AssistedFactory
 import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
@@ -31,17 +34,25 @@ class SyncWorkerFactory @Inject constructor(
     private val supabaseClientProvider: SupabaseClientProvider,
     private val pendingWalletUpdateDao: PendingWalletUpdateDao,
     private val userDao: UserDao,
-    private val transactionDao: WalletTransactionDao
+    private val walletTransactionDao: WalletTransactionDao
+
 ) : WorkerFactory() {
     override fun createWorker(
         appContext: Context,
         workerClassName: String,
-        workerParameters: androidx.work.WorkerParameters
-    ): androidx.work.ListenableWorker? {
-        return if (workerClassName == SyncWorker::class.java.name) {
-            SyncWorker(appContext, workerParameters, supabaseClientProvider, pendingWalletUpdateDao, userDao, transactionDao)
-        } else {
-            null
+        workerParameters: WorkerParameters
+    ): ListenableWorker? {
+        return when (workerClassName) {
+            SyncWorker::class.java.name -> SyncWorker(
+                context = appContext,
+                params = workerParameters,
+                supabaseClientProvider = supabaseClientProvider,
+                pendingWalletUpdateDao = pendingWalletUpdateDao,
+                userDao = userDao,
+                walletTransactionDao = walletTransactionDao
+            )
+            else -> null
         }
     }
+
 }

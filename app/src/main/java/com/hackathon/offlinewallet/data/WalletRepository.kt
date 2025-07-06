@@ -3,6 +3,7 @@ package com.hackathon.offlinewallet.data
 import android.content.Context
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
+import android.util.Log
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 import com.android.identity.util.UUID
@@ -21,23 +22,27 @@ class WalletRepository @Inject constructor(
     private val context: Context
 ) {
 
-    public fun isOnline(): Boolean {
+    fun isOnline(): Boolean {
         val connectivityManager = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
         val network = connectivityManager.activeNetwork ?: return false
         val capabilities = connectivityManager.getNetworkCapabilities(network) ?: return false
         return capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
     }
 
+
     suspend fun getWallet(email: String): Result<Wallet?> = withContext(Dispatchers.IO) {
         try {
             if (isOnline()) {
+                println("User email $email")
                 val response = supabaseClientProvider.client.from("wallets")
                     .select { filter { eq("email", email) } }
                     .decodeSingleOrNull<Map<String, Any>>()
                 val wallet = response?.let {
-                    Wallet(response["user_id"] as String,balance = (it["balance"] as Number).toDouble(), email)
+                    Wallet(response["user_id"] as String, balance = (it["balance"] as Number).toDouble(), email)
                 }
                 if (wallet != null) {
+                    supabaseClientProvider.client.from("wallets").insert(wallet)
+
                     walletDao.insertWallet(
                         LocalWallet(
                             id = response["id"] as String,
@@ -279,7 +284,7 @@ class WalletRepository @Inject constructor(
             } else {
                 // Offline: Update sender wallet
                 val senderWallet = walletDao.getWalletByEmail(senderEmail)
-                if (senderWallet == null) return@withContext Result.failure(IllegalStateException("Sender wallet not found"))
+                    ?: return@withContext Result.failure(IllegalStateException("Sender wallet not found"))
                 if (senderWallet.balance < amount) return@withContext Result.failure(IllegalStateException("Insufficient balance"))
                 walletDao.insertWallet(
                     senderWallet.copy(balance = senderWallet.balance - amount, updatedAt = OffsetDateTime.now().toString())
@@ -494,7 +499,7 @@ class WalletRepository @Inject constructor(
             } else {
                 // Offline: Update sender wallet
                 val senderWallet = walletDao.getWalletByEmail(senderEmail)
-                if (senderWallet == null) return@withContext Result.failure(IllegalStateException("Sender not found"))
+                    ?: return@withContext Result.failure(IllegalStateException("Sender not found"))
                 if (senderWallet.balance < amount) return@withContext Result.failure(IllegalStateException("Sender has insufficient balance"))
                 walletDao.insertWallet(
                     senderWallet.copy(balance = senderWallet.balance - amount, updatedAt = OffsetDateTime.now().toString())
@@ -570,6 +575,7 @@ class WalletRepository @Inject constructor(
             Result.failure(e)
         }
     }
+
     suspend fun getTransactions(userId: String): Result<List<WalletTransactions>> = withContext(Dispatchers.IO) {
         try {
             if (isOnline()) {
@@ -600,4 +606,92 @@ class WalletRepository @Inject constructor(
         }
     }
 
+    suspend fun storeOfflineTransaction(transaction: WalletTransactions) {
+        transactionDao.insertTransaction(transaction)
+        val senderWallet = walletDao.getWalletByEmail(transaction.senderEmail)
+        if (senderWallet != null && senderWallet.balance >= transaction.amount) {
+            walletDao.insertWallet(
+                senderWallet.copy(
+                    balance = senderWallet.balance - transaction.amount,
+                    updatedAt = OffsetDateTime.now().toString()
+                )
+            )
+        }
+        val receiverWallet = walletDao.getWalletByEmail(transaction.receiverEmail)
+        if (receiverWallet != null) {
+            walletDao.insertWallet(
+                receiverWallet.copy(
+                    balance = receiverWallet.balance + transaction.amount,
+                    updatedAt = OffsetDateTime.now().toString()
+                )
+            )
+        } else {
+            walletDao.insertWallet(
+                LocalWallet(
+                    id = "offline_${transaction.receiverEmail.hashCode()}",
+                    userId = "offline_${transaction.receiverEmail.hashCode()}",
+                    email = transaction.receiverEmail,
+                    balance = transaction.amount,
+                    createdAt = OffsetDateTime.now().toString(),
+                    updatedAt = OffsetDateTime.now().toString()
+                )
+            )
+        }
+        pendingWalletUpdateDao.insertPendingUpdate(
+            PendingWalletUpdate(
+                email = transaction.senderEmail,
+                amount = -transaction.amount,
+                timestamp = transaction.timestamp,
+                transactionType = "send",
+                relatedEmail = transaction.receiverEmail
+            )
+        )
+        pendingWalletUpdateDao.insertPendingUpdate(
+            PendingWalletUpdate(
+                email = transaction.receiverEmail,
+                amount = transaction.amount,
+                timestamp = transaction.timestamp,
+                transactionType = "receive",
+                relatedEmail = transaction.senderEmail
+            )
+        )
+        val workRequest = OneTimeWorkRequestBuilder<SyncWorker>().build()
+        WorkManager.getInstance(context).enqueue(workRequest)
+    }
+//
+//    suspend fun syncPendingTransactions() {
+//        if (!isOnline()) {
+//            Log.d("WalletRepository", "Offline: cannot sync pending transactions")
+//            return
+//        }
+//        val pendingUpdates = withContext(Dispatchers.IO) {
+//            pendingWalletUpdateDao.getPendingUpdates()
+//        }
+//        for (update in pendingUpdates) {
+//            try {
+//                supabase.from("wallets").update({ set("balance", update.newBalance) }) {
+//                    filter { eq("userId", update.userId) }
+//                }
+//                withContext(Dispatchers.IO) {
+//                    pendingWalletUpdateDao.delete(update)
+//                }
+//            } catch (e: Exception) {
+//                Log.e("WalletRepository", "Error syncing wallet update: ${e.message}", e)
+//            }
+//        }
+//
+//        val pendingTransactions = withContext(Dispatchers.IO) {
+//            walletTransactionDao.getPendingTransactions()
+//        }
+//        for (transaction in pendingTransactions) {
+//            try {
+//                supabase.from("transactions").insert(transaction)
+//                withContext(Dispatchers.IO) {
+//                    walletTransactionDao.updateStatus(transaction.id, "completed")
+//                }
+//            } catch (e: Exception) {
+//                Log.e("WalletRepository", "Error syncing transaction: ${e.message}", e)
+//            }
+//        }
+//    }
 }

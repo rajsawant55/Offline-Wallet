@@ -77,13 +77,20 @@ fun RegistrationScreen(navController: NavController, authViewModel: AuthViewMode
                             isLoading = true
                             authViewModel.signUp(email, password, username) { success, error ->
                                 isLoading = false
-                                if (success) {
-                                    navController.navigate("home") {
-                                        popUpTo(navController.graph.startDestinationId) { inclusive = true }
-                                    }
-                                } else {
-                                    scope.launch {
-                                        snackbarHostState.showSnackbar(error ?: "Registration failed. Please try again.")
+                                scope.launch {
+                                    if (success) {
+                                        snackbarHostState.showSnackbar(
+                                            "Please check your email to confirm registration.",
+                                            duration = SnackbarDuration.Long
+                                        )
+                                        navController.navigate("login") {
+                                            popUpTo(navController.graph.startDestinationId) { inclusive = true }
+                                        }
+                                    } else {
+                                        snackbarHostState.showSnackbar(
+                                            error ?: "Registration failed. Please try again.",
+                                            duration = SnackbarDuration.Long
+                                        )
                                     }
                                 }
                             }

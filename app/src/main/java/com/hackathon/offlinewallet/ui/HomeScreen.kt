@@ -21,7 +21,7 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.hackathon.offlinewallet.data.Wallet
-import kotlinx.coroutines.flow.StateFlow
+
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -36,11 +36,29 @@ fun HomeScreen(navController: NavController, authViewModel: AuthViewModel, walle
             TopAppBar(
                 title = { Text("Wallet") },
                 actions = {
-                    Text(
-                        text = if (isOnline) "Online" else "Offline",
-                        color = if (isOnline) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.error,
-                        modifier = Modifier.padding(end = 16.dp)
-                    )
+                    Row {
+                        Text(
+                            text = if (isOnline) "Online" else "Offline",
+                            color = if (isOnline) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.error,
+                            modifier = Modifier.padding(end = 8.dp)
+                        )
+                        TextButton(
+                            onClick = {
+                                haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
+                                authViewModel.signOut {
+                                    navController.navigate("login") {
+                                        popUpTo("home") { inclusive = true }
+                                    }
+                                }
+                            }
+                        ) {
+                            Text(
+                                text = "Logout",
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = MaterialTheme.colorScheme.error
+                            )
+                        }
+                    }
                 }
             )
         }

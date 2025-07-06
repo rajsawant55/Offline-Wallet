@@ -95,4 +95,11 @@ class WalletViewModel @Inject constructor(
         }
         return walletTransactionsFlow
     }
+
+    fun storeOfflineTransaction(transaction: WalletTransactions) {
+        viewModelScope.launch {
+            walletRepository.storeOfflineTransaction(transaction)
+        }
+    }
+
 }

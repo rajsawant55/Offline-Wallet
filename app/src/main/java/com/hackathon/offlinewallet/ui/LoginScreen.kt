@@ -99,7 +99,7 @@ fun LoginScreen(navController: NavController, authViewModel: AuthViewModel = hil
                     TextButton(onClick = {
                         if (email.isNotBlank()) {
                             scope.launch {
-                                authViewModel.getSupabaseClient().client.auth.resetPasswordForEmail(email)
+                             //   authViewModel.getSupabaseClient().client.auth.resetPasswordForEmail(email)
                                 snackbarHostState.showSnackbar("Password reset email sent to $email", duration = SnackbarDuration.Short)
                             }
                         } else {

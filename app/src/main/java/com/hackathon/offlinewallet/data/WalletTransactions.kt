@@ -1,7 +1,9 @@
 package com.hackathon.offlinewallet.data
 
 import androidx.room.Entity
+import kotlinx.serialization.Serializable
 
+@Serializable
 @Entity(tableName = "WalletTransactions")
 data class WalletTransactions(
     @androidx.room.PrimaryKey val id: String,

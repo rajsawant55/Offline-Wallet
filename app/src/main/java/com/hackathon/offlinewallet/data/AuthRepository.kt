@@ -3,6 +3,7 @@ package com.hackathon.offlinewallet.data
 import android.content.Context
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
+import com.android.identity.util.UUID
 import io.github.jan.supabase.auth.auth
 import io.github.jan.supabase.auth.providers.builtin.Email
 import io.github.jan.supabase.postgrest.from
@@ -14,7 +15,8 @@ import javax.inject.Inject
 class AuthRepository @Inject constructor(
     private val supabaseClientProvider: SupabaseClientProvider,
     private val userDao: UserDao,
-    private val context: Context
+    private val context: Context,
+    private val walletDao: WalletDao
 ) {
 
     private fun isOnline(): Boolean {
@@ -27,41 +29,79 @@ class AuthRepository @Inject constructor(
     suspend fun signUp(email: String, password: String, username: String): Result<Unit> = withContext(Dispatchers.IO) {
         try {
             if (isOnline()) {
-                supabaseClientProvider.client.auth.signUpWith(Email) {
+                android.util.Log.d("AuthRepository", "Initiating signup for $email")
+                val signUpWithResponse = supabaseClientProvider.client.auth.signUpWith(Email) {
                     this.email = email
                     this.password = password
                 }
-                val userId = supabaseClientProvider.client.auth.currentUserOrNull()?.id
-                    ?: return@withContext Result.failure(Exception("User ID not found"))
+                val tempString : String = signUpWithResponse?.userMetadata?.get("sub").toString()
+                val uniqueId = tempString.replace("\"", "")
                 supabaseClientProvider.client.from("users").insert(
                     mapOf(
-                        "id" to userId,
+                        "user_id" to uniqueId,
                         "email" to email,
-                        "username" to username
+                        "user_name" to username,
+                        "created_at" to OffsetDateTime.now().toString()
                     )
                 )
+
+                supabaseClientProvider.client.from("wallets").insert(
+                    mapOf(
+                        "user_id" to uniqueId,
+                        "email" to email,
+                        "balance" to "0.00",
+                        "created_at" to OffsetDateTime.now().toString(),
+                        "updated_at" to OffsetDateTime.now().toString()
+                    )
+                )
+
+                android.util.Log.d("AuthRepository", "User inserted into Supabase with ID: $uniqueId")
                 userDao.insertUser(
                     LocalUser(
-                        id = userId,
+                        id = uniqueId,
                         email = email,
                         username = username,
                         createdAt = OffsetDateTime.now().toString()
                     )
                 )
+                walletDao.insertWallet(
+                    LocalWallet(
+                        id = uniqueId,
+                        userId = username,
+                        email = email,
+                        balance = 0.0,
+                        createdAt =  OffsetDateTime.now().toString(),
+                        updatedAt = OffsetDateTime.now().toString()
+                    )
+                )
+
+
                 Result.success(Unit)
             } else {
-                // Offline: Store user data locally with a placeholder ID
+                val tempUserId = email.hashCode().toString()
+                android.util.Log.d("AuthRepository", "Offline: storing user $email locally")
                 userDao.insertUser(
                     LocalUser(
-                        id = "offline_${email.hashCode()}",
+                        id = tempUserId,
                         email = email,
                         username = username,
                         createdAt = OffsetDateTime.now().toString()
+                    )
+                )
+                walletDao.insertWallet(
+                    LocalWallet(
+                        id = tempUserId,
+                        userId = username,
+                        email = email,
+                        balance = 0.0,
+                        createdAt =  OffsetDateTime.now().toString(),
+                        updatedAt = OffsetDateTime.now().toString()
                     )
                 )
                 Result.success(Unit)
             }
         } catch (e: Exception) {
+            android.util.Log.e("AuthRepository", "Signup failed: ${e.message}", e)
             Result.failure(e)
         }
     }
@@ -69,27 +109,29 @@ class AuthRepository @Inject constructor(
     suspend fun login(email: String, password: String): Result<Unit> = withContext(Dispatchers.IO) {
         try {
             if (isOnline()) {
-                val signInResult = supabaseClientProvider.client.auth.signInWith(Email){
+                supabaseClientProvider.client.auth.signInWith(Email) {
                     this.email = email
                     this.password = password
                 }
-                val user = getUser(email).getOrNull()
-                if (user != null) {
-                    userDao.insertUser(
-                        LocalUser(
-                            id = user.id,
-                            email = user.email,
-                            username = user.username,
-                            createdAt = OffsetDateTime.now().toString()
-                        )
-                    )
-                }
+//                val user = getUser(email).getOrNull()
+//                if (user != null) {
+//                    android.util.Log.d("AuthRepository", "Logged in user: ${user.email}")
+//                    userDao.insertUser(
+//                        LocalUser(
+//                            id = user.id,
+//                            email = user.email,
+//                            username = user.username,
+//                            createdAt = OffsetDateTime.now().toString()
+//                        )
+//                    )
+//                }
                 Result.success(Unit)
             } else {
-                // Offline login not supported; requires Supabase auth
+                android.util.Log.w("AuthRepository", "Offline login not supported")
                 Result.failure(Exception("Login requires internet connection"))
             }
         } catch (e: Exception) {
+            android.util.Log.e("AuthRepository", "Login failed: ${e.message}", e)
             Result.failure(e)
         }
     }
@@ -99,13 +141,14 @@ class AuthRepository @Inject constructor(
             if (isOnline()) {
                 supabaseClientProvider.client.auth.signOut()
             }
-            // Clear local user data
             val email = getCurrentUserEmail()
             if (email != null) {
                 userDao.deleteUser(email)
             }
+            android.util.Log.d("AuthRepository", "Signout successful")
             Result.success(Unit)
         } catch (e: Exception) {
+            android.util.Log.e("AuthRepository", "Signout failed: ${e.message}", e)
             Result.failure(e)
         }
     }
@@ -116,6 +159,7 @@ class AuthRepository @Inject constructor(
 
     suspend fun getUser(email: String): Result<User?> = withContext(Dispatchers.IO) {
         try {
+            println("User email during get User $email")
             if (isOnline()) {
                 val response = supabaseClientProvider.client.from("users")
                     .select { filter { eq("email", email) } }
@@ -124,7 +168,8 @@ class AuthRepository @Inject constructor(
                     User(
                         id = it["id"] as? String ?: "",
                         email = it["email"] as? String ?: "",
-                        username = it["username"] as? String ?: ""
+                        username = it["user_name"] as? String ?: "",
+                        createdAt = it["created_at"] as? String ?: ""
                     )
                 }
                 if (user != null) {
@@ -141,10 +186,11 @@ class AuthRepository @Inject constructor(
             } else {
                 val localUser = userDao.getUserByEmail(email)
                 Result.success(localUser?.let {
-                    User(id = it.id, email = it.email, username = it.username)
+                    User(id = it.id, email = it.email, username = it.username, createdAt = it.createdAt)
                 })
             }
         } catch (e: Exception) {
+            android.util.Log.e("AuthRepository", "Failed to fetch user: ${e.message}", e)
             Result.failure(e)
         }
     }
@@ -154,6 +200,7 @@ class AuthRepository @Inject constructor(
             val session = supabaseClientProvider.client.auth.currentSessionOrNull()
             Result.success(session != null)
         } catch (e: Exception) {
+            android.util.Log.e("AuthRepository", "Failed to check session: ${e.message}", e)
             Result.failure(e)
         }
     }

@@ -7,7 +7,6 @@ import com.hackathon.offlinewallet.data.SupabaseClientProvider
 import com.hackathon.offlinewallet.data.User
 import dagger.hilt.android.lifecycle.HiltViewModel
 import io.github.jan.supabase.auth.auth
-import io.github.jan.supabase.postgrest.from
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
@@ -15,63 +14,75 @@ import javax.inject.Inject
 
 @HiltViewModel
 class AuthViewModel @Inject constructor(
-    private val supabaseClientProvider: SupabaseClientProvider, private val authRepository: AuthRepository
+    private val supabaseClientProvider: SupabaseClientProvider,
+    private val authRepository: AuthRepository
 ) : ViewModel() {
 
     private val _user = MutableStateFlow<User?>(null)
     val user: StateFlow<User?> = _user
 
-    public fun getSupabaseClient():  SupabaseClientProvider {
-        return supabaseClientProvider
-    }
     init {
-        // Check for existing session
         viewModelScope.launch {
-            val session = supabaseClientProvider.client.auth.currentSessionOrNull()
-            if (session != null) {
-                fetchUserData(session.user?.email ?: "")
+            val sessionResult = authRepository.getCurrentSession()
+            if (sessionResult.isSuccess && sessionResult.getOrNull() == true) {
+                val email = supabaseClientProvider.client.auth.currentUserOrNull()?.email
+                if (email != null) {
+                    fetchUserData(email)
+                }
             }
         }
     }
 
     fun signUp(email: String, password: String, username: String, onResult: (Boolean, String?) -> Unit) {
         viewModelScope.launch {
-            try {
-                authRepository.signUp(email, password, username)
-                fetchUserData(email)
+            val result = authRepository.signUp(email, password, username)
+            if (result.isSuccess) {
+                // Don't fetch user data immediately; wait for email confirmation
+                android.util.Log.d("AuthViewModel", "Signup initiated for $email, awaiting email confirmation")
                 onResult(true, null)
-            } catch (e: Exception) {
-                onResult(false, e.message)
+            } else {
+                android.util.Log.e("AuthViewModel", "Signup failed: ${result.exceptionOrNull()?.message}")
+                onResult(false, result.exceptionOrNull()?.message)
             }
         }
     }
 
     fun login(email: String, password: String, onResult: (Boolean, String?) -> Unit) {
         viewModelScope.launch {
-            try {
-                authRepository.login(email, password)
-                fetchUserData(email)
-                onResult(true, null)
-            } catch (e: Exception) {
-                onResult(false, e.message)
+            val result = authRepository.login(email, password)
+            if (result.isSuccess) {
+                val fetchedEmail = supabaseClientProvider.client.auth.currentUserOrNull()?.email
+                if (fetchedEmail != null) {
+                    fetchUserData(fetchedEmail)
+                    android.util.Log.d("AuthViewModel", "Login successful, email: $email")
+                    onResult(true, null)
+                } else {
+                    android.util.Log.w("AuthViewModel", "Login succeeded but no email found")
+                    onResult(false, "Failed to retrieve user email")
+                }
+            } else {
+                android.util.Log.e("AuthViewModel", "Login failed: ${result.exceptionOrNull()?.message}")
+                onResult(false, result.exceptionOrNull()?.message)
             }
         }
     }
 
     fun signOut(onResult: (Boolean) -> Unit) {
         viewModelScope.launch {
-            try {
-                supabaseClientProvider.client.auth.signOut()
+            val result = authRepository.signOut()
+            if (result.isSuccess) {
                 _user.value = null
+                android.util.Log.d("AuthViewModel", "Signout successful")
                 onResult(true)
-            } catch (e: Exception) {
+            } else {
+                android.util.Log.e("AuthViewModel", "Signout failed: ${result.exceptionOrNull()?.message}")
                 onResult(false)
             }
         }
     }
 
     fun getCurrentUserEmail(): String? {
-        return supabaseClientProvider.client.auth.currentUserOrNull()?.email
+        return _user.value?.email
     }
 
     fun getUser(email: String): StateFlow<User?> {
@@ -82,20 +93,12 @@ class AuthViewModel @Inject constructor(
     }
 
     private suspend fun fetchUserData(email: String) {
-        try {
-            val response = supabaseClientProvider.client.from("users")
-                .select {
-                    filter { eq("email", email) }
-                }
-                .decodeSingleOrNull<Map<String, Any>>()
-            response?.let {
-                _user.value = User(
-                    id = it["id"] as? String ?: "",
-                    email = it["email"] as? String ?: "",
-                    username = it["username"] as? String ?: ""
-                )
-            }
-        } catch (e: Exception) {
+        val result = authRepository.getUser(email)
+        if (result.isSuccess) {
+            _user.value = result.getOrNull()
+            android.util.Log.d("AuthViewModel", "User fetched: ${_user.value?.email}")
+        } else {
+            android.util.Log.e("AuthViewModel", "Failed to fetch user: ${result.exceptionOrNull()?.message}")
             _user.value = null
         }
     }

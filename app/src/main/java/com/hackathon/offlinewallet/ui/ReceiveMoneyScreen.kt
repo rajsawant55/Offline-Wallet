@@ -1,18 +1,27 @@
 package com.hackathon.offlinewallet.ui
 
+import android.graphics.Bitmap
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
+import com.google.zxing.BarcodeFormat
+import com.google.zxing.qrcode.QRCodeWriter
+import com.journeyapps.barcodescanner.BarcodeEncoder
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -27,9 +36,27 @@ fun ReceiveMoneyScreen(navController: NavController, authViewModel: AuthViewMode
     val isPressed by interactionSource.collectIsPressedAsState()
     val scope = rememberCoroutineScope()
     val scale by animateFloatAsState(if (isPressed) 0.95f else 1f)
+    val userEmail by remember { derivedStateOf { authViewModel.getCurrentUserEmail() ?: "" } }
+    val context = LocalContext.current
+    val qrBitmap = remember(userEmail) {
+        if (userEmail.isNotEmpty()) {
+            generateQRCode(userEmail)
+        } else {
+            null
+        }
+    }
 
     Scaffold(
-        topBar = { TopAppBar(title = { Text("Receive Money") }) },
+        topBar = {
+            TopAppBar(
+                title = { Text("Receive Money") },
+                navigationIcon = {
+                    IconButton(onClick = { navController.navigateUp() }) {
+                        Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+                    }
+                }
+            )
+        },
         snackbarHost = { SnackbarHost(hostState = snackbarHostState) }
     ) { innerPadding ->
         Column(
@@ -53,6 +80,24 @@ fun ReceiveMoneyScreen(navController: NavController, authViewModel: AuthViewMode
                         text = "Receive Money",
                         style = MaterialTheme.typography.headlineMedium,
                         color = MaterialTheme.colorScheme.primary
+                    )
+                    Spacer(modifier = Modifier.height(24.dp))
+                    Text(
+                        text = "Show this QR code to receive money offline",
+                        style = MaterialTheme.typography.titleMedium
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+                    qrBitmap?.let {
+                        Image(
+                            bitmap = it.asImageBitmap(),
+                            contentDescription = "QR Code",
+                            modifier = Modifier.size(200.dp)
+                        )
+                    } ?: Text("Loading QR code...")
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text(
+                        text = "Your Email: $userEmail",
+                        style = MaterialTheme.typography.bodyMedium
                     )
                     Spacer(modifier = Modifier.height(24.dp))
                     OutlinedTextField(
@@ -117,5 +162,16 @@ fun ReceiveMoneyScreen(navController: NavController, authViewModel: AuthViewMode
                 }
             }
         }
+    }
+}
+
+fun generateQRCode(content: String): Bitmap? {
+    return try {
+        val qrCodeWriter = QRCodeWriter()
+        val bitMatrix = qrCodeWriter.encode(content, BarcodeFormat.QR_CODE, 200, 200)
+        val barcodeEncoder = BarcodeEncoder()
+        barcodeEncoder.createBitmap(bitMatrix)
+    } catch (e: Exception) {
+        null
     }
 }
