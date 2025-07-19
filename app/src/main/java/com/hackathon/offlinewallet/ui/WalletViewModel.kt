@@ -4,16 +4,27 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.hackathon.offlinewallet.data.WalletTransactions
 import com.hackathon.offlinewallet.data.Wallet
+import com.hackathon.offlinewallet.data.WalletDao
 import com.hackathon.offlinewallet.data.WalletRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
+import org.json.JSONObject
 import javax.inject.Inject
 
 @HiltViewModel
 class WalletViewModel @Inject constructor(
-    private val walletRepository: WalletRepository
+    private val walletRepository: WalletRepository,
+    private val walletDao: WalletDao
 ) : ViewModel() {
 
     private val _isOnline = MutableStateFlow(walletRepository.isOnline())
@@ -103,3 +114,9 @@ class WalletViewModel @Inject constructor(
     }
 
 }
+
+@Serializable
+data class CreateOrderResponse(
+    val payment_session_id: String,
+    val order_id: String
+)

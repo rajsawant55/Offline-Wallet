@@ -44,6 +44,14 @@ abstract class AppDatabase : RoomDatabase() {
                 """)
             }
         }
+
+        val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                database.execSQL("ALTER TABLE LocalUser ADD COLUMN needsSync INTEGER NOT NULL DEFAULT 0")
+                database.execSQL("ALTER TABLE LocalUser ADD COLUMN passwordHash TEXT")
+                database.execSQL("ALTER TABLE LocalWallet ADD COLUMN needsSync INTEGER NOT NULL DEFAULT 0")
+            }
+        }
     }
 }
 

@@ -18,4 +18,12 @@ interface UserDao {
 
     @androidx.room.Query("SELECT * FROM LocalUser")
     suspend fun getAllUsers(): List<LocalUser>
+
+
+    @Query("SELECT * FROM LocalUser WHERE needsSync = 1")
+    suspend fun getPendingUsers(): List<LocalUser>
+
+    @Query("UPDATE LocalUser SET needsSync = 0, id = :newId WHERE id = :oldId")
+    suspend fun markUserSynced(oldId: String, newId: String)
+
 }

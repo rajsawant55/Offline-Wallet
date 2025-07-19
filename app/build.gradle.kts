@@ -93,4 +93,5 @@ dependencies {
     implementation(libs.ktor.client.core)
     implementation(libs.zxing.android.embedded)
     implementation(libs.kotlinx.serialization.json)
+
 }

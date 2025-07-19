@@ -2,11 +2,11 @@
   "formatVersion": 1,
   "database": {
     "version": 3,
-    "identityHash": "c1de8d863cc5486f7c2c80dd80e43d96",
+    "identityHash": "c22f62af909980bf7c76d815c887250c",
     "entities": [
       {
         "tableName": "LocalUser",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `email` TEXT NOT NULL, `username` TEXT NOT NULL, `createdAt` TEXT NOT NULL, PRIMARY KEY(`id`))",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `email` TEXT NOT NULL, `username` TEXT NOT NULL, `createdAt` TEXT NOT NULL, `needsSync` INTEGER NOT NULL, `passwordHash` TEXT, PRIMARY KEY(`id`))",
         "fields": [
           {
             "fieldPath": "id",
@@ -31,6 +31,17 @@
             "columnName": "createdAt",
             "affinity": "TEXT",
             "notNull": true
+          },
+          {
+            "fieldPath": "needsSync",
+            "columnName": "needsSync",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "passwordHash",
+            "columnName": "passwordHash",
+            "affinity": "TEXT"
           }
         ],
         "primaryKey": {
@@ -42,7 +53,7 @@
       },
       {
         "tableName": "LocalWallet",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `userId` TEXT NOT NULL, `email` TEXT NOT NULL, `balance` REAL NOT NULL, `createdAt` TEXT NOT NULL, `updatedAt` TEXT NOT NULL, PRIMARY KEY(`id`))",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `userId` TEXT NOT NULL, `email` TEXT NOT NULL, `balance` REAL NOT NULL, `createdAt` TEXT NOT NULL, `updatedAt` TEXT NOT NULL, `needsSync` INTEGER NOT NULL, PRIMARY KEY(`id`))",
         "fields": [
           {
             "fieldPath": "id",
@@ -78,6 +89,12 @@
             "fieldPath": "updatedAt",
             "columnName": "updatedAt",
             "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "needsSync",
+            "columnName": "needsSync",
+            "affinity": "INTEGER",
             "notNull": true
           }
         ],
@@ -198,7 +215,7 @@
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'c1de8d863cc5486f7c2c80dd80e43d96')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'c22f62af909980bf7c76d815c887250c')"
     ]
   }
 }

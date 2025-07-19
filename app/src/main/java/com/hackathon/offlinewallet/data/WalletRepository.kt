@@ -11,6 +11,7 @@ import io.github.jan.supabase.auth.auth
 import io.github.jan.supabase.postgrest.from
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import java.time.Instant
 import java.time.OffsetDateTime
 import javax.inject.Inject
 
@@ -36,21 +37,21 @@ class WalletRepository @Inject constructor(
                 println("User email $email")
                 val response = supabaseClientProvider.client.from("wallets")
                     .select { filter { eq("email", email) } }
-                    .decodeSingleOrNull<Map<String, Any>>()
+                    .decodeSingleOrNull<SWallet>()
+
                 val wallet = response?.let {
-                    Wallet(response["user_id"] as String, balance = (it["balance"] as Number).toDouble(), email)
+                    Wallet(response.user_id, balance = (response.balance as Number).toDouble(), response.email)
                 }
                 if (wallet != null) {
-                    supabaseClientProvider.client.from("wallets").insert(wallet)
 
                     walletDao.insertWallet(
                         LocalWallet(
-                            id = response["id"] as String,
-                            userId = response["user_id"] as String,
+                            id = response.user_id,
+                            userId = response.user_id,
                             email = email,
                             balance = wallet.balance,
-                            createdAt = response["created_at"] as String,
-                            updatedAt = response["updated_at"] as String
+                            createdAt = response.created_at.toString(),
+                            updatedAt = response.updated_at.toString()
                         )
                     )
                 }
@@ -70,20 +71,20 @@ class WalletRepository @Inject constructor(
                 val client = supabaseClientProvider.client
                 val existingWallet = client.from("wallets")
                     .select { filter { eq("email", email) } }
-                    .decodeSingleOrNull<Map<String, Any>>()
+                    .decodeSingleOrNull<SWallet>()
 
                 if (existingWallet != null) {
-                    val currentBalance = (existingWallet["balance"] as Number).toDouble()
+                    val currentBalance = (existingWallet.balance as Number).toDouble()
                     client.from("wallets").update(
                         mapOf("balance" to currentBalance + amount)
                     ) { filter { eq("email", email) } }
                     walletDao.insertWallet(
                         LocalWallet(
-                            id = existingWallet["id"] as String,
-                            userId = existingWallet["user_id"] as String,
+                            id = existingWallet.user_id ,
+                            userId = existingWallet.user_id,
                             email = email,
                             balance = currentBalance + amount,
-                            createdAt = existingWallet["created_at"] as String,
+                            createdAt = existingWallet.created_at as String,
                             updatedAt = OffsetDateTime.now().toString()
                         )
                     )
@@ -99,15 +100,15 @@ class WalletRepository @Inject constructor(
                     )
                     val newWallet = client.from("wallets")
                         .select { filter { eq("email", email) } }
-                        .decodeSingle<Map<String, Any>>()
+                        .decodeSingle<SWallet>()
                     walletDao.insertWallet(
                         LocalWallet(
-                            id = newWallet["id"] as String,
+                            id = newWallet.user_id as String,
                             userId = userId,
                             email = email,
                             balance = amount,
-                            createdAt = newWallet["created_at"] as String,
-                            updatedAt = newWallet["updated_at"] as String
+                            createdAt = newWallet.created_at as String,
+                            updatedAt = newWallet.updated_at as String
                         )
                     )
                 }
@@ -162,9 +163,9 @@ class WalletRepository @Inject constructor(
                 // Check sender wallet
                 val senderWallet = client.from("wallets")
                     .select { filter { eq("email", senderEmail) } }
-                    .decodeSingleOrNull<Map<String, Any>>()
+                    .decodeSingleOrNull<SWallet>()
                 if (senderWallet == null) return@withContext Result.failure(IllegalStateException("Sender wallet not found"))
-                val senderBalance = (senderWallet["balance"] as Number).toDouble()
+                val senderBalance = (senderWallet.balance as Number).toDouble()
                 if (senderBalance < amount) return@withContext Result.failure(IllegalStateException("Insufficient balance"))
 
                 // Update sender wallet
@@ -173,11 +174,11 @@ class WalletRepository @Inject constructor(
                 ) { filter { eq("email", senderEmail) } }
                 walletDao.insertWallet(
                     LocalWallet(
-                        id = senderWallet["id"] as String,
-                        userId = senderWallet["user_id"] as String,
+                        id = senderWallet.user_id as String,
+                        userId = senderWallet.user_id as String,
                         email = senderEmail,
                         balance = senderBalance - amount,
-                        createdAt = senderWallet["created_at"] as String,
+                        createdAt = senderWallet.created_at as String,
                         updatedAt = OffsetDateTime.now().toString()
                     )
                 )
@@ -185,19 +186,19 @@ class WalletRepository @Inject constructor(
                 // Update or create receiver wallet
                 val receiverWallet = client.from("wallets")
                     .select { filter { eq("email", receiverEmail) } }
-                    .decodeSingleOrNull<Map<String, Any>>()
+                    .decodeSingleOrNull<SWallet>()
                 if (receiverWallet != null) {
-                    val receiverBalance = (receiverWallet["balance"] as Number).toDouble()
+                    val receiverBalance = (receiverWallet.balance as Number).toDouble()
                     client.from("wallets").update(
                         mapOf("balance" to receiverBalance + amount)
                     ) { filter { eq("email", receiverEmail) } }
                     walletDao.insertWallet(
                         LocalWallet(
-                            id = receiverWallet["id"] as String,
-                            userId = receiverWallet["user_id"] as String,
+                            id = receiverWallet.user_id as String,
+                            userId = receiverWallet.user_id as String,
                             email = receiverEmail,
                             balance = receiverBalance + amount,
-                            createdAt = receiverWallet["created_at"] as String,
+                            createdAt = receiverWallet.created_at as String,
                             updatedAt = OffsetDateTime.now().toString()
                         )
                     )
@@ -216,15 +217,15 @@ class WalletRepository @Inject constructor(
                     )
                     val newWallet = client.from("wallets")
                         .select { filter { eq("email", receiverEmail) } }
-                        .decodeSingle<Map<String, Any>>()
+                        .decodeSingle<SWallet>()
                     walletDao.insertWallet(
                         LocalWallet(
-                            id = newWallet["id"] as String,
+                            id = newWallet.user_id as String,
                             userId = receiverUserId,
                             email = receiverEmail,
                             balance = amount,
-                            createdAt = newWallet["created_at"] as String,
-                            updatedAt = newWallet["updated_at"] as String
+                            createdAt = newWallet.created_at as String,
+                            updatedAt = newWallet.updated_at as String
                         )
                     )
                 }
@@ -244,7 +245,7 @@ class WalletRepository @Inject constructor(
                 client.from("transactions").insert(
                     mapOf(
                         "id" to UUID.randomUUID().toString(),
-                        "user_id" to receiverWallet?.get("user_id"),
+                        "user_id" to receiverWallet?.user_id,
                         "sender_email" to senderEmail,
                         "receiver_email" to receiverEmail,
                         "amount" to amount,
@@ -268,7 +269,7 @@ class WalletRepository @Inject constructor(
                 transactionDao.insertTransaction(
                     WalletTransactions(
                         id = UUID.randomUUID().toString(),
-                        userId = receiverWallet?.get("user_id") as? String ?: "offline_${receiverEmail.hashCode()}",
+                        userId = receiverWallet?.user_id ?: "offline_${receiverEmail.hashCode()}",
                         senderEmail = senderEmail,
                         receiverEmail = receiverEmail,
                         amount = amount,
@@ -376,9 +377,9 @@ class WalletRepository @Inject constructor(
                 // Verify sender exists
                 val senderWallet = client.from("wallets")
                     .select { filter { eq("email", senderEmail) } }
-                    .decodeSingleOrNull<Map<String, Any>>()
+                    .decodeSingleOrNull<SWallet>()
                 if (senderWallet == null) return@withContext Result.failure(IllegalStateException("Sender not found"))
-                val senderBalance = (senderWallet["balance"] as Number).toDouble()
+                val senderBalance = (senderWallet.balance as Number).toDouble()
                 if (senderBalance < amount) return@withContext Result.failure(IllegalStateException("Sender has insufficient balance"))
 
                 // Update sender wallet
@@ -387,11 +388,11 @@ class WalletRepository @Inject constructor(
                 ) { filter { eq("email", senderEmail) } }
                 walletDao.insertWallet(
                     LocalWallet(
-                        id = senderWallet["id"] as String,
-                        userId = senderWallet["user_id"] as String,
+                        id = senderWallet.user_id as String,
+                        userId = senderWallet.user_id as String,
                         email = senderEmail,
                         balance = senderBalance - amount,
-                        createdAt = senderWallet["created_at"] as String,
+                        createdAt = senderWallet.created_at as String,
                         updatedAt = OffsetDateTime.now().toString()
                     )
                 )
@@ -399,19 +400,19 @@ class WalletRepository @Inject constructor(
                 // Update or create receiver wallet
                 val receiverWallet = client.from("wallets")
                     .select { filter { eq("email", receiverEmail) } }
-                    .decodeSingleOrNull<Map<String, Any>>()
+                    .decodeSingleOrNull<SWallet>()
                 if (receiverWallet != null) {
-                    val receiverBalance = (receiverWallet["balance"] as Number).toDouble()
+                    val receiverBalance = (receiverWallet.balance as Number).toDouble()
                     client.from("wallets").update(
                         mapOf("balance" to receiverBalance + amount)
                     ) { filter { eq("email", receiverEmail) } }
                     walletDao.insertWallet(
                         LocalWallet(
-                            id = receiverWallet["id"] as String,
-                            userId = receiverWallet["user_id"] as String,
+                            id = receiverWallet.user_id as String,
+                            userId = receiverWallet.user_id as String,
                             email = receiverEmail,
                             balance = receiverBalance + amount,
-                            createdAt = receiverWallet["created_at"] as String,
+                            createdAt = receiverWallet.created_at as String,
                             updatedAt = OffsetDateTime.now().toString()
                         )
                     )
@@ -430,15 +431,15 @@ class WalletRepository @Inject constructor(
                     )
                     val newWallet = client.from("wallets")
                         .select { filter { eq("email", receiverEmail) } }
-                        .decodeSingle<Map<String, Any>>()
+                        .decodeSingle<SWallet>()
                     walletDao.insertWallet(
                         LocalWallet(
-                            id = newWallet["id"] as String,
+                            id = newWallet.user_id as String,
                             userId = receiverUserId,
                             email = receiverEmail,
                             balance = amount,
-                            createdAt = newWallet["created_at"] as String,
-                            updatedAt = newWallet["updated_at"] as String
+                            createdAt = newWallet.created_at as String,
+                            updatedAt = newWallet.updated_at as String
                         )
                     )
                 }
@@ -459,7 +460,7 @@ class WalletRepository @Inject constructor(
                 client.from("transactions").insert(
                     mapOf(
                         "id" to UUID.randomUUID().toString(),
-                        "user_id" to senderWallet["user_id"],
+                        "user_id" to senderWallet.user_id,
                         "sender_email" to senderEmail,
                         "receiver_email" to receiverEmail,
                         "amount" to amount,
@@ -483,7 +484,7 @@ class WalletRepository @Inject constructor(
                 transactionDao.insertTransaction(
                     WalletTransactions(
                         id = UUID.randomUUID().toString(),
-                        userId = senderWallet["user_id"] as String,
+                        userId = senderWallet.user_id as String,
                         senderEmail = senderEmail,
                         receiverEmail = receiverEmail,
                         amount = amount,
@@ -658,6 +659,8 @@ class WalletRepository @Inject constructor(
         val workRequest = OneTimeWorkRequestBuilder<SyncWorker>().build()
         WorkManager.getInstance(context).enqueue(workRequest)
     }
+
+
 //
 //    suspend fun syncPendingTransactions() {
 //        if (!isOnline()) {

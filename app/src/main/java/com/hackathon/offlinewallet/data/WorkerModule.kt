@@ -34,6 +34,7 @@ class SyncWorkerFactory @Inject constructor(
     private val supabaseClientProvider: SupabaseClientProvider,
     private val pendingWalletUpdateDao: PendingWalletUpdateDao,
     private val userDao: UserDao,
+    private val walletDao: WalletDao,
     private val walletTransactionDao: WalletTransactionDao
 
 ) : WorkerFactory() {
@@ -49,6 +50,7 @@ class SyncWorkerFactory @Inject constructor(
                 supabaseClientProvider = supabaseClientProvider,
                 pendingWalletUpdateDao = pendingWalletUpdateDao,
                 userDao = userDao,
+                walletDao = walletDao,
                 walletTransactionDao = walletTransactionDao
             )
             else -> null

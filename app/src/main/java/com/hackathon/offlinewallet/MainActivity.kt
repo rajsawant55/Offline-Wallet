@@ -13,7 +13,6 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
-import androidx.work.Configuration
 import com.hackathon.offlinewallet.data.BluetoothService
 import com.hackathon.offlinewallet.ui.*
 import dagger.hilt.android.AndroidEntryPoint
@@ -27,11 +26,11 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
-import androidx.work.WorkManager
-import kotlinx.coroutines.launch
-
+import androidx.compose.runtime.LaunchedEffect
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
     @Inject
@@ -56,6 +55,8 @@ class MainActivity : ComponentActivity() {
             Toast.makeText(this, "Bluetooth is required for offline transactions", Toast.LENGTH_LONG).show()
         }
     }
+
+
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -125,12 +126,22 @@ fun WalletApp() {
     val snackbarHostState = remember { SnackbarHostState() }
     val coroutineScope = rememberCoroutineScope()
 
+    val user by authViewModel.user.collectAsState()
+    val startDestination = if (user != null) "home" else "login"
+
+    LaunchedEffect(user) {
+        if (user != null && navController.currentDestination?.route != "home") {
+            navController.navigate("home") {
+                popUpTo(navController.graph.startDestinationId) { inclusive = true }
+            }
+        }
+    }
     Scaffold(
         snackbarHost = { SnackbarHost(hostState = snackbarHostState) }
     ) { innerPadding ->
         NavHost(
             navController = navController,
-            startDestination = "login",
+            startDestination = startDestination,
             modifier = Modifier.padding(innerPadding)
         ) {
             composable("login") {
