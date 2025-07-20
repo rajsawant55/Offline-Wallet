@@ -20,7 +20,7 @@ class AuthRepository @Inject constructor(
     private val walletDao: WalletDao
 ) {
 
-    private fun isOnline(): Boolean {
+    public fun isOnline(): Boolean {
         val connectivityManager = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
         val network = connectivityManager.activeNetwork ?: return false
         val capabilities = connectivityManager.getNetworkCapabilities(network) ?: return false
@@ -191,11 +191,6 @@ class AuthRepository @Inject constructor(
             if (isOnline()) {
                 supabaseClientProvider.client.auth.signOut()
             }
-//            val email = getCurrentUserEmail()
-//            if (email != null) {
-//                userDao.deleteUser(email)
-//                walletDao.deleteWallet(email)
-//            }
             android.util.Log.d("AuthRepository", "Signout successful")
             Result.success(Unit)
         } catch (e: Exception) {
@@ -225,16 +220,16 @@ class AuthRepository @Inject constructor(
                         createdAt = it.created_at
                     )
                 }
-                if (user != null) {
-                    userDao.insertUser(
-                        LocalUser(
-                            id = user.id,
-                            email = user.email,
-                            username = user.username,
-                            createdAt = OffsetDateTime.now().toString()
-                        )
-                    )
-                }
+//                if (user != null) {
+//                    userDao.insertUser(
+//                        LocalUser(
+//                            id = user.id,
+//                            email = user.email,
+//                            username = user.username,
+//                            createdAt = OffsetDateTime.now().toString()
+//                        )
+//                    )
+//                }
                 Result.success(user)
             } else {
                 val localUser = userDao.getUserByEmail(email)

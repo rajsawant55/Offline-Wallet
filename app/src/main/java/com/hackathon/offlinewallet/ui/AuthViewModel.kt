@@ -51,7 +51,12 @@ class AuthViewModel @Inject constructor(
         viewModelScope.launch {
             val result = authRepository.login(email, password)
             if (result.isSuccess) {
-                val fetchedEmail = supabaseClientProvider.client.auth.currentUserOrNull()?.email
+                var fetchedEmail: String? = null
+                if(authRepository.isOnline()){
+                    fetchedEmail = supabaseClientProvider.client.auth.currentUserOrNull()?.email
+                } else {
+                    fetchedEmail = email
+                }
                 if (fetchedEmail != null) {
                     fetchUserData(fetchedEmail)
                     android.util.Log.d("AuthViewModel", "Login successful, email: $email")

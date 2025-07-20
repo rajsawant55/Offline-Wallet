@@ -12,6 +12,7 @@ import androidx.navigation.NavController
 import io.github.jan.supabase.auth.auth
 import kotlinx.coroutines.launch
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LoginScreen(navController: NavController, authViewModel: AuthViewModel = hiltViewModel()) {
     var email by remember { mutableStateOf("") }
@@ -21,6 +22,11 @@ fun LoginScreen(navController: NavController, authViewModel: AuthViewModel = hil
     val scope = rememberCoroutineScope()
 
     Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("BinaryBunch Pay") }
+            )
+        },
         snackbarHost = { SnackbarHost(hostState = snackbarHostState) }
     ) { innerPadding ->
         Column(

@@ -11,6 +11,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import kotlinx.coroutines.launch
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun RegistrationScreen(navController: NavController, authViewModel: AuthViewModel = hiltViewModel()) {
     var email by remember { mutableStateOf("") }
@@ -21,6 +22,11 @@ fun RegistrationScreen(navController: NavController, authViewModel: AuthViewMode
     val snackbarHostState = remember { SnackbarHostState() }
 
     Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("BinaryBunch Pay") }
+            )
+        },
         snackbarHost = { SnackbarHost(hostState = snackbarHostState) }
     ) { innerPadding ->
         Column(

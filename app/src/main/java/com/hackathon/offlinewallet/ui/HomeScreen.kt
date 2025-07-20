@@ -34,7 +34,7 @@ fun HomeScreen(navController: NavController, authViewModel: AuthViewModel, walle
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Wallet") },
+                title = { Text("BinaryBunch Pay") },
                 actions = {
                     Row {
                         Text(

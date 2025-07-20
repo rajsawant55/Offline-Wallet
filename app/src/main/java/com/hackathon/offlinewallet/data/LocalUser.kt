@@ -12,5 +12,5 @@ data class LocalUser(
     val username: String,
     val createdAt: String,
     val needsSync: Boolean = false,
-    val passwordHash: String? = null
+    val passwordHash: String
 )
