@@ -1,8 +1,11 @@
 package com.hackathon.offlinewallet.data
 
 import android.content.Context
+import androidx.hilt.work.HiltWorker
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
+import dagger.assisted.Assisted
+import dagger.assisted.AssistedInject
 import io.github.jan.supabase.auth.auth
 import io.github.jan.supabase.auth.providers.builtin.Email
 import io.github.jan.supabase.postgrest.from
@@ -10,14 +13,15 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.time.OffsetDateTime
 
-class SyncWorker(
-    context: Context,
-    params: WorkerParameters,
-    private val supabaseClientProvider: SupabaseClientProvider,
-    private val pendingWalletUpdateDao: PendingWalletUpdateDao,
-    private val userDao: UserDao,
-    private val walletDao: WalletDao,
-    private val walletTransactionDao: WalletTransactionDao
+@HiltWorker
+class SyncWorker @AssistedInject constructor(
+    @Assisted context: Context,
+    @Assisted params: WorkerParameters,
+    @Assisted private val pendingWalletUpdateDao: PendingWalletUpdateDao,
+    @Assisted private val userDao: UserDao,
+    @Assisted private val walletDao: WalletDao,
+    @Assisted private val walletTransactionDao: WalletTransactionDao,
+    @Assisted private val supabaseClientProvider: SupabaseClientProvider
 ) : CoroutineWorker(context, params) {
 
     override suspend fun doWork(): Result = withContext(Dispatchers.IO) {

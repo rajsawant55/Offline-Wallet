@@ -20,15 +20,12 @@ import javax.inject.Singleton
 @Module
 @InstallIn(SingletonComponent::class)
 object AppModule {
-    @Provides
-    @Singleton
-    fun provideSupabaseClientProvider(): SupabaseClientProvider {
-        return SupabaseClientProvider()
-    }
+
 
     @Provides
     @Singleton
     fun provideAppDatabase(@ApplicationContext context: Context): AppDatabase {
+        println("app database called")
         return Room.databaseBuilder(
             context,
             AppDatabase::class.java,
@@ -36,6 +33,8 @@ object AppModule {
         )
             .addMigrations(AppDatabase.MIGRATION_1_2, AppDatabase.MIGRATION_2_3, AppDatabase.MIGRATION_3_4)
             .build()
+
+
     }
 
     @Provides
@@ -56,12 +55,23 @@ object AppModule {
 
     @Provides
     @Singleton
+    fun provideSupabaseClientProvider(): SupabaseClientProvider {
+        println("Supabase callded")
+        return SupabaseClientProvider()
+
+    }
+
+    @Provides
+    @Singleton
     fun provideAuthRepository(
+
         supabaseClientProvider: SupabaseClientProvider,
         userDao: com.hackathon.offlinewallet.data.UserDao,
         walletDao: WalletDao,
         @ApplicationContext context: Context
     ): AuthRepository {
+        println("Auth repo called")
+
         return AuthRepository(supabaseClientProvider, userDao, context, walletDao)
     }
 
@@ -75,6 +85,8 @@ object AppModule {
         @ApplicationContext context: Context
 
     ): WalletRepository {
+        println("wallet repo called")
+
         return WalletRepository(supabaseClientProvider, walletDao, pendingWalletUpdateDao, walletTransactionDao, context)
     }
 

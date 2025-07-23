@@ -16,6 +16,8 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.CallReceived
 import androidx.compose.material.icons.filled.Send
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -101,7 +103,7 @@ fun HomeScreen(navController: NavController, authViewModel: AuthViewModel, walle
                 horizontalArrangement = Arrangement.SpaceEvenly
             ) {
                 ActionCard(
-                    icon = Icons.Default.Send,
+                    icon = Icons.Default.Add,
                     label = "Add Money",
                     onClick = {
                         haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
@@ -130,7 +132,7 @@ fun HomeScreen(navController: NavController, authViewModel: AuthViewModel, walle
                     }
                 )
                 ActionCard(
-                    icon = Icons.Default.Send,
+                    icon = Icons.Default.CallReceived,
                     label = "Receive",
                     onClick = {
                         haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)

@@ -5,6 +5,7 @@ plugins {
     alias(libs.plugins.kotlin.ksp)
     alias(libs.plugins.compose.compiler)
     alias(libs.plugins.kotlinx.serialization)
+    alias(libs.plugins.google.services)
 }
 ksp {
     arg("room.schemaLocation", "$projectDir/schemas")
@@ -15,7 +16,7 @@ android {
 
     defaultConfig {
         applicationId = "com.hackathon.offlinewallet"
-        minSdk = 35
+        minSdk = 31
         targetSdk = 35
         versionCode = 1
         versionName = "1.0"
@@ -63,6 +64,7 @@ dependencies {
     implementation(libs.supabase.auth)
     implementation(libs.androidx.hilt.work)
     implementation(libs.identity.jvm)
+    implementation(libs.androidx.datastore.core.android)
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
@@ -93,5 +95,7 @@ dependencies {
     implementation(libs.ktor.client.core)
     implementation(libs.zxing.android.embedded)
     implementation(libs.kotlinx.serialization.json)
-
+    implementation(platform(libs.firebase.bom))
+    implementation(libs.firebase.auth.ktx )
+    implementation(libs.firebase.firestore.ktx )
 }

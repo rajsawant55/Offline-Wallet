@@ -1,15 +1,18 @@
 package com.hackathon.offlinewallet.ui
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
-import io.github.jan.supabase.auth.auth
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -17,9 +20,13 @@ import kotlinx.coroutines.launch
 fun LoginScreen(navController: NavController, authViewModel: AuthViewModel = hiltViewModel()) {
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
+    var showPassword by remember { mutableStateOf(false) }
     var isLoading by remember { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
+    val isFormValid by remember {
+        derivedStateOf { email.isNotBlank() && password.isNotBlank() }
+    }
 
     Scaffold(
         topBar = {
@@ -65,7 +72,15 @@ fun LoginScreen(navController: NavController, authViewModel: AuthViewModel = hil
                         value = password,
                         onValueChange = { password = it },
                         label = { Text("Password") },
-                        visualTransformation = PasswordVisualTransformation(),
+                        visualTransformation = if (showPassword) VisualTransformation.None else PasswordVisualTransformation(),
+                        trailingIcon = {
+                            IconButton(onClick = { showPassword = !showPassword }) {
+                                Icon(
+                                    imageVector = if (showPassword) Icons.Filled.Visibility else Icons.Filled.VisibilityOff,
+                                    contentDescription = if (showPassword) "Hide password" else "Show password"
+                                )
+                            }
+                        },
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true
                     )
@@ -81,13 +96,16 @@ fun LoginScreen(navController: NavController, authViewModel: AuthViewModel = hil
                                     }
                                 } else {
                                     scope.launch {
-                                        snackbarHostState.showSnackbar(error ?: "Login failed. Please check your credentials.", duration = SnackbarDuration.Short)
+                                        snackbarHostState.showSnackbar(
+                                            error ?: "Login failed. Please check your credentials.",
+                                            duration = SnackbarDuration.Short
+                                        )
                                     }
                                 }
                             }
                         },
                         modifier = Modifier.fillMaxWidth(),
-                        enabled = !isLoading
+                        enabled = !isLoading && isFormValid
                     ) {
                         if (isLoading) {
                             CircularProgressIndicator(
@@ -105,12 +123,18 @@ fun LoginScreen(navController: NavController, authViewModel: AuthViewModel = hil
                     TextButton(onClick = {
                         if (email.isNotBlank()) {
                             scope.launch {
-                             //   authViewModel.getSupabaseClient().client.auth.resetPasswordForEmail(email)
-                                snackbarHostState.showSnackbar("Password reset email sent to $email", duration = SnackbarDuration.Short)
+                                // authViewModel.getSupabaseClient().client.auth.resetPasswordForEmail(email)
+                                snackbarHostState.showSnackbar(
+                                    "Password reset email sent to $email",
+                                    duration = SnackbarDuration.Short
+                                )
                             }
                         } else {
                             scope.launch {
-                                snackbarHostState.showSnackbar("Please enter your email address.", duration = SnackbarDuration.Short)
+                                snackbarHostState.showSnackbar(
+                                    "Please enter your email address.",
+                                    duration = SnackbarDuration.Short
+                                )
                             }
                         }
                     }) {
