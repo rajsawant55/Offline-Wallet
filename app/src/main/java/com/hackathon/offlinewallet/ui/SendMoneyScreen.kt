@@ -1,7 +1,12 @@
 package com.hackathon.offlinewallet.ui
 
+
+import com.hackathon.offlinewallet.ui.AuthViewModel
+import com.hackathon.offlinewallet.ui.WalletViewModel
+
 import android.Manifest
 import android.bluetooth.BluetoothAdapter
+import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothSocket
 import android.content.Context
 import android.content.pm.PackageManager
@@ -33,6 +38,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
+import java.io.InputStream
 import java.io.OutputStream
 import java.time.OffsetDateTime
 import java.util.UUID
@@ -43,6 +49,7 @@ fun SendMoneyScreen(navController: NavController, authViewModel: AuthViewModel, 
     var receiverEmail by remember { mutableStateOf("") }
     var amount by remember { mutableStateOf("") }
     var isLoading by remember { mutableStateOf(false) }
+    var selectedDevice by remember { mutableStateOf<BluetoothDevice?>(null) }
     val snackbarHostState = remember { SnackbarHostState() }
     val haptic = LocalHapticFeedback.current
     val interactionSource = remember { MutableInteractionSource() }
@@ -59,6 +66,8 @@ fun SendMoneyScreen(navController: NavController, authViewModel: AuthViewModel, 
             coroutineScope.launch {
                 snackbarHostState.showSnackbar("Camera or Bluetooth permissions denied")
             }
+        } else {
+            isBluetoothEnabled = BluetoothAdapter.getDefaultAdapter()?.isEnabled == true
         }
     }
     val scanLauncher = rememberLauncherForActivityResult(ScanContract()) { result ->
@@ -140,6 +149,21 @@ fun SendMoneyScreen(navController: NavController, authViewModel: AuthViewModel, 
                         Text("Scan QR Code")
                     }
                     Spacer(modifier = Modifier.height(16.dp))
+                    Button(
+                        onClick = {
+                            discoverAndSelectDevice(context) { device ->
+                                selectedDevice = device
+                                coroutineScope.launch {
+                                    snackbarHostState.showSnackbar("Selected device: ${device.name}")
+                                }
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        enabled = isBluetoothEnabled
+                    ) {
+                        Text("Select Bluetooth Device")
+                    }
+                    Spacer(modifier = Modifier.height(16.dp))
                     OutlinedTextField(
                         value = amount,
                         onValueChange = { amount = it },
@@ -183,6 +207,13 @@ fun SendMoneyScreen(navController: NavController, authViewModel: AuthViewModel, 
                                     }
                                 }
                             } else {
+                                if (selectedDevice == null) {
+                                    isLoading = false
+                                    coroutineScope.launch {
+                                        snackbarHostState.showSnackbar("Please select a Bluetooth device")
+                                    }
+                                    return@Button
+                                }
                                 coroutineScope.launch(Dispatchers.IO) {
                                     val transaction = WalletTransactions(
                                         id = UUID.randomUUID().toString(),
@@ -195,7 +226,7 @@ fun SendMoneyScreen(navController: NavController, authViewModel: AuthViewModel, 
                                         status = "pending"
                                     )
                                     walletViewModel.storeOfflineTransaction(transaction)
-                                    val success = sendViaBluetooth(context, transaction)
+                                    val success = sendViaBluetooth(context, transaction, selectedDevice!!)
                                     withContext(Dispatchers.Main) {
                                         isLoading = false
                                         if (success) {
@@ -231,25 +262,56 @@ fun SendMoneyScreen(navController: NavController, authViewModel: AuthViewModel, 
 }
 
 @RequiresPermission(allOf = [Manifest.permission.BLUETOOTH_CONNECT, Manifest.permission.BLUETOOTH_SCAN])
-fun sendViaBluetooth(context: Context, transaction: WalletTransactions): Boolean {
+fun discoverAndSelectDevice(context: Context, onDeviceSelected: (BluetoothDevice) -> Unit) {
+    val bluetoothAdapter = BluetoothAdapter.getDefaultAdapter()
+    if (bluetoothAdapter == null || !bluetoothAdapter.isEnabled) return
+
+    val pairedDevices = bluetoothAdapter.bondedDevices
+    if (pairedDevices.isNotEmpty()) {
+        // For simplicity, select the first device; ideally, show a UI dialog
+        val targetDevice = pairedDevices.first()
+        onDeviceSelected(targetDevice)
+    } else {
+        // Start discovery (requires BroadcastReceiver implementation)
+        bluetoothAdapter.startDiscovery()
+        // TODO: Implement BroadcastReceiver to handle discovered devices
+    }
+}
+
+@RequiresPermission(allOf = [Manifest.permission.BLUETOOTH_CONNECT, Manifest.permission.BLUETOOTH_SCAN])
+fun sendViaBluetooth(context: Context, transaction: WalletTransactions, device: BluetoothDevice): Boolean {
     return try {
         val bluetoothAdapter = BluetoothAdapter.getDefaultAdapter()
         if (bluetoothAdapter == null || !bluetoothAdapter.isEnabled) return false
 
-        val pairedDevices = bluetoothAdapter.bondedDevices
-        val targetDevice = pairedDevices.firstOrNull { it.name.contains("OfflineWallet") }
-            ?: return false
-
-        val uuid = UUID.fromString("00001101-0000-1000-8000-00805F9B34FB") // SPP UUID
-        val socket: BluetoothSocket = targetDevice.createRfcommSocketToServiceRecord(uuid)
+        val uuid = UUID.fromString("00001101-0000-1000-8000-00805F9B34FB")
+        val socket: BluetoothSocket = device.createRfcommSocketToServiceRecord(uuid)
         bluetoothAdapter.cancelDiscovery()
         socket.connect()
 
         val outputStream: OutputStream = socket.outputStream
+        val inputStream: InputStream = socket.inputStream
+
+        // Send handshake
+        outputStream.write("HANDSHAKE".toByteArray())
+        outputStream.flush()
+
+        // Wait for acknowledgment
+        val buffer = ByteArray(1024)
+        val bytesRead = inputStream.read(buffer)
+        val response = String(buffer, 0, bytesRead)
+        if (response != "ACK") {
+            socket.close()
+            return false
+        }
+
+        // Send transaction
         val transactionJson = Json.encodeToString(WalletTransactions.serializer(), transaction)
         outputStream.write(transactionJson.toByteArray())
         outputStream.flush()
+
         outputStream.close()
+        inputStream.close()
         socket.close()
         true
     } catch (e: Exception) {

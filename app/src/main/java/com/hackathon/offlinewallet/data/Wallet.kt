@@ -16,7 +16,7 @@ import kotlinx.serialization.Serializable
 )
 @Serializable
 data class Wallet(
-    @PrimaryKey val id: String,
+    @PrimaryKey val userId: String,
     val balance: Double,
-    val userEmail: String
+    val email: String
 )

@@ -1,5 +1,4 @@
 package com.hackathon.offlinewallet.data
-
 import android.content.Context
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
@@ -40,17 +39,17 @@ class WalletRepository @Inject constructor(
                     .await()
                 val wallet = snapshot.documents.firstOrNull()?.let { doc ->
                     Wallet(
-                        id = doc.getString("user_id") ?: "",
+                        userId = doc.getString("user_id") ?: "",
                         balance = doc.getDouble("balance") ?: 0.0,
-                        userEmail = doc.getString("email") ?: ""
+                        email = doc.getString("email") ?: ""
                     )
                 }
                 if (wallet != null) {
                     walletDao.insertWallet(
                         LocalWallet(
-                            id = wallet.id,
-                            userId = wallet.id,
-                            email = wallet.userEmail,
+                            id = wallet.userId,
+                            userId = wallet.userId,
+                            email = wallet.email,
                             balance = wallet.balance,
                             createdAt = snapshot.documents.first().getString("created_at") ?: OffsetDateTime.now().toString(),
                             updatedAt = snapshot.documents.first().getString("updated_at") ?: OffsetDateTime.now().toString()
@@ -60,7 +59,7 @@ class WalletRepository @Inject constructor(
                 Result.success(wallet)
             } else {
                 val localWallet = walletDao.getWalletByEmail(email)
-                Result.success(localWallet?.let { Wallet(it.userId, balance = it.balance, it.email) })
+                Result.success(localWallet?.let { Wallet(it.userId, it.balance, it.email) })
             }
         } catch (e: Exception) {
             Log.e("WalletRepository", "Error fetching wallet: ${e.message}", e)
