@@ -3,10 +3,8 @@ package com.hackathon.offlinewallet.ui
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.hackathon.offlinewallet.data.AuthRepository
-import com.hackathon.offlinewallet.data.SupabaseClientProvider
 import com.hackathon.offlinewallet.data.User
 import dagger.hilt.android.lifecycle.HiltViewModel
-import io.github.jan.supabase.auth.auth
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
@@ -14,7 +12,6 @@ import javax.inject.Inject
 
 @HiltViewModel
 class AuthViewModel @Inject constructor(
-    private val supabaseClientProvider: SupabaseClientProvider,
     private val authRepository: AuthRepository
 ) : ViewModel() {
 
@@ -24,11 +21,8 @@ class AuthViewModel @Inject constructor(
     init {
         viewModelScope.launch {
             val sessionResult = authRepository.getCurrentSession()
-            if (sessionResult.isSuccess && sessionResult.getOrNull() == true) {
-                val email = supabaseClientProvider.client.auth.currentUserOrNull()?.email
-                if (email != null) {
-                    fetchUserData(email)
-                }
+            if(sessionResult!=null){
+                fetchUserData(sessionResult)
             }
         }
     }
@@ -53,7 +47,7 @@ class AuthViewModel @Inject constructor(
             if (result.isSuccess) {
                 var fetchedEmail: String? = null
                 if(authRepository.isOnline()){
-                    fetchedEmail = supabaseClientProvider.client.auth.currentUserOrNull()?.email
+                    fetchedEmail = authRepository.getCurrentUserEmail()
                 } else {
                     fetchedEmail = email
                 }

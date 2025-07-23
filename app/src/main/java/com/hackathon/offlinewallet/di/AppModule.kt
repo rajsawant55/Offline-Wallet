@@ -2,12 +2,13 @@ package com.hackathon.offlinewallet.di
 
 import android.content.Context
 import androidx.room.Room
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.FirebaseFirestore
 import com.hackathon.offlinewallet.data.AppDatabase
 import com.hackathon.offlinewallet.data.AuthRepository
 import com.hackathon.offlinewallet.data.BluetoothService
 import com.hackathon.offlinewallet.data.PendingWalletUpdateDao
 import com.hackathon.offlinewallet.data.WalletTransactionDao
-import com.hackathon.offlinewallet.data.SupabaseClientProvider
 import com.hackathon.offlinewallet.data.WalletDao
 import com.hackathon.offlinewallet.data.WalletRepository
 import dagger.Module
@@ -21,7 +22,6 @@ import javax.inject.Singleton
 @InstallIn(SingletonComponent::class)
 object AppModule {
 
-
     @Provides
     @Singleton
     fun provideAppDatabase(@ApplicationContext context: Context): AppDatabase {
@@ -33,8 +33,6 @@ object AppModule {
         )
             .addMigrations(AppDatabase.MIGRATION_1_2, AppDatabase.MIGRATION_2_3, AppDatabase.MIGRATION_3_4)
             .build()
-
-
     }
 
     @Provides
@@ -55,39 +53,41 @@ object AppModule {
 
     @Provides
     @Singleton
-    fun provideSupabaseClientProvider(): SupabaseClientProvider {
-        println("Supabase callded")
-        return SupabaseClientProvider()
+    fun provideFirebaseAuth(): FirebaseAuth {
+        return FirebaseAuth.getInstance()
+    }
 
+    @Provides
+    @Singleton
+    fun provideFirestore(): FirebaseFirestore {
+        return FirebaseFirestore.getInstance()
     }
 
     @Provides
     @Singleton
     fun provideAuthRepository(
-
-        supabaseClientProvider: SupabaseClientProvider,
+        firebaseAuth: FirebaseAuth,
+        firestore: FirebaseFirestore,
         userDao: com.hackathon.offlinewallet.data.UserDao,
         walletDao: WalletDao,
         @ApplicationContext context: Context
     ): AuthRepository {
         println("Auth repo called")
-
-        return AuthRepository(supabaseClientProvider, userDao, context, walletDao)
+        return AuthRepository(firebaseAuth, firestore, userDao, context, walletDao)
     }
 
     @Provides
     @Singleton
     fun provideWalletRepository(
-        supabaseClientProvider: SupabaseClientProvider,
+        firebaseAuth: FirebaseAuth,
+        firestore: FirebaseFirestore,
         walletDao: WalletDao,
         pendingWalletUpdateDao: PendingWalletUpdateDao,
         walletTransactionDao: WalletTransactionDao,
         @ApplicationContext context: Context
-
     ): WalletRepository {
         println("wallet repo called")
-
-        return WalletRepository(supabaseClientProvider, walletDao, pendingWalletUpdateDao, walletTransactionDao, context)
+        return WalletRepository(firebaseAuth, firestore, walletDao, pendingWalletUpdateDao, walletTransactionDao, context)
     }
 
     @Provides

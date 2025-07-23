@@ -7,16 +7,17 @@ import android.util.Log
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 import com.android.identity.util.UUID
-import io.github.jan.supabase.auth.auth
-import io.github.jan.supabase.postgrest.from
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
-import java.time.Instant
 import java.time.OffsetDateTime
 import javax.inject.Inject
 
 class WalletRepository @Inject constructor(
-    private val supabaseClientProvider: SupabaseClientProvider,
+    private val firebaseAuth: FirebaseAuth,
+    private val firestore: FirebaseFirestore,
     private val walletDao: WalletDao,
     private val pendingWalletUpdateDao: PendingWalletUpdateDao,
     private val transactionDao: WalletTransactionDao,
@@ -30,28 +31,29 @@ class WalletRepository @Inject constructor(
         return capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
     }
 
-
     suspend fun getWallet(email: String): Result<Wallet?> = withContext(Dispatchers.IO) {
         try {
             if (isOnline()) {
-                println("User email $email")
-                val response = supabaseClientProvider.client.from("wallets")
-                    .select { filter { eq("email", email) } }
-                    .decodeSingleOrNull<SWallet>()
-
-                val wallet = response?.let {
-                    Wallet(response.user_id, balance = (response.balance as Number).toDouble(), response.email)
+                val snapshot = firestore.collection("wallets")
+                    .whereEqualTo("email", email)
+                    .get()
+                    .await()
+                val wallet = snapshot.documents.firstOrNull()?.let { doc ->
+                    Wallet(
+                        id = doc.getString("user_id") ?: "",
+                        balance = doc.getDouble("balance") ?: 0.0,
+                        userEmail = doc.getString("email") ?: ""
+                    )
                 }
                 if (wallet != null) {
-
                     walletDao.insertWallet(
                         LocalWallet(
-                            id = response.user_id,
-                            userId = response.user_id,
-                            email = email,
+                            id = wallet.id,
+                            userId = wallet.id,
+                            email = wallet.userEmail,
                             balance = wallet.balance,
-                            createdAt = response.created_at.toString(),
-                            updatedAt = response.updated_at.toString()
+                            createdAt = snapshot.documents.first().getString("created_at") ?: OffsetDateTime.now().toString(),
+                            updatedAt = snapshot.documents.first().getString("updated_at") ?: OffsetDateTime.now().toString()
                         )
                     )
                 }
@@ -61,59 +63,61 @@ class WalletRepository @Inject constructor(
                 Result.success(localWallet?.let { Wallet(it.userId, balance = it.balance, it.email) })
             }
         } catch (e: Exception) {
+            Log.e("WalletRepository", "Error fetching wallet: ${e.message}", e)
             Result.failure(e)
         }
     }
 
     suspend fun addMoney(email: String, amount: Double): Result<Unit> = withContext(Dispatchers.IO) {
         try {
+            if (amount <= 0) return@withContext Result.failure(IllegalArgumentException("Amount must be positive"))
             if (isOnline()) {
-                val client = supabaseClientProvider.client
-                val existingWallet = client.from("wallets")
-                    .select { filter { eq("email", email) } }
-                    .decodeSingleOrNull<SWallet>()
-
-                if (existingWallet != null) {
-                    val currentBalance = (existingWallet.balance as Number).toDouble()
-                    client.from("wallets").update(
-                        mapOf("balance" to currentBalance + amount)
-                    ) { filter { eq("email", email) } }
+                val userId = firebaseAuth.currentUser?.uid
+                    ?: return@withContext Result.failure(IllegalStateException("User not authenticated"))
+                val snapshot = firestore.collection("wallets")
+                    .whereEqualTo("email", email)
+                    .get()
+                    .await()
+                if (snapshot.documents.isNotEmpty()) {
+                    val doc = snapshot.documents.first()
+                    val currentBalance = doc.getDouble("balance") ?: 0.0
+                    firestore.collection("wallets")
+                        .document(doc.id)
+                        .update("balance", currentBalance + amount)
+                        .await()
                     walletDao.insertWallet(
                         LocalWallet(
-                            id = existingWallet.user_id ,
-                            userId = existingWallet.user_id,
+                            id = doc.getString("user_id") ?: userId,
+                            userId = userId,
                             email = email,
                             balance = currentBalance + amount,
-                            createdAt = existingWallet.created_at as String,
+                            createdAt = doc.getString("created_at") ?: OffsetDateTime.now().toString(),
                             updatedAt = OffsetDateTime.now().toString()
                         )
                     )
                 } else {
-                    val userId = client.auth.currentUserOrNull()?.id
-                        ?: return@withContext Result.failure(IllegalStateException("User not authenticated"))
-                    client.from("wallets").insert(
-                        mapOf(
-                            "user_id" to userId,
-                            "email" to email,
-                            "balance" to amount
-                        )
+                    val newWallet = mapOf(
+                        "user_id" to userId,
+                        "email" to email,
+                        "balance" to amount,
+                        "created_at" to OffsetDateTime.now().toString(),
+                        "updated_at" to OffsetDateTime.now().toString()
                     )
-                    val newWallet = client.from("wallets")
-                        .select { filter { eq("email", email) } }
-                        .decodeSingle<SWallet>()
+                    firestore.collection("wallets").document(userId).set(newWallet).await()
                     walletDao.insertWallet(
                         LocalWallet(
-                            id = newWallet.user_id as String,
+                            id = userId,
                             userId = userId,
                             email = email,
                             balance = amount,
-                            createdAt = newWallet.created_at as String,
-                            updatedAt = newWallet.updated_at as String
+                            createdAt = OffsetDateTime.now().toString(),
+                            updatedAt = OffsetDateTime.now().toString()
                         )
                     )
                 }
                 val workRequest = OneTimeWorkRequestBuilder<SyncWorker>().build()
                 WorkManager.getInstance(context).enqueue(workRequest)
+                Log.d("WalletRepository", "Enqueuing SyncWorker for email: $email, amount: $amount")
                 Result.success(Unit)
             } else {
                 val localWallet = walletDao.getWalletByEmail(email)
@@ -145,6 +149,7 @@ class WalletRepository @Inject constructor(
                 Result.success(Unit)
             }
         } catch (e: Exception) {
+            Log.e("WalletRepository", "Error adding money: ${e.message}", e)
             Result.failure(e)
         }
     }
@@ -153,84 +158,84 @@ class WalletRepository @Inject constructor(
         try {
             if (amount <= 0) return@withContext Result.failure(IllegalArgumentException("Amount must be positive"))
             if (senderEmail == receiverEmail) return@withContext Result.failure(IllegalArgumentException("Cannot send money to self"))
-            val userId = supabaseClientProvider.client.auth.currentUserOrNull()?.id
-                ?: "offline_${senderEmail.hashCode()}"
+            val userId = firebaseAuth.currentUser?.uid ?: "offline_${senderEmail.hashCode()}"
             val transactionId = UUID.randomUUID().toString()
             val timestamp = OffsetDateTime.now().toString()
 
             if (isOnline()) {
-                val client = supabaseClientProvider.client
-                // Check sender wallet
-                val senderWallet = client.from("wallets")
-                    .select { filter { eq("email", senderEmail) } }
-                    .decodeSingleOrNull<SWallet>()
-                if (senderWallet == null) return@withContext Result.failure(IllegalStateException("Sender wallet not found"))
-                val senderBalance = (senderWallet.balance as Number).toDouble()
+                val senderSnapshot = firestore.collection("wallets")
+                    .whereEqualTo("email", senderEmail)
+                    .get()
+                    .await()
+                if (senderSnapshot.isEmpty) return@withContext Result.failure(IllegalStateException("Sender wallet not found"))
+                val senderDoc = senderSnapshot.documents.first()
+                val senderBalance = senderDoc.getDouble("balance") ?: 0.0
                 if (senderBalance < amount) return@withContext Result.failure(IllegalStateException("Insufficient balance"))
 
-                // Update sender wallet
-                client.from("wallets").update(
-                    mapOf("balance" to senderBalance - amount)
-                ) { filter { eq("email", senderEmail) } }
+                firestore.collection("wallets")
+                    .document(senderDoc.id)
+                    .update("balance", senderBalance - amount)
+                    .await()
                 walletDao.insertWallet(
                     LocalWallet(
-                        id = senderWallet.user_id as String,
-                        userId = senderWallet.user_id as String,
+                        id = senderDoc.getString("user_id") ?: userId,
+                        userId = userId,
                         email = senderEmail,
                         balance = senderBalance - amount,
-                        createdAt = senderWallet.created_at as String,
+                        createdAt = senderDoc.getString("created_at") ?: OffsetDateTime.now().toString(),
                         updatedAt = OffsetDateTime.now().toString()
                     )
                 )
 
-                // Update or create receiver wallet
-                val receiverWallet = client.from("wallets")
-                    .select { filter { eq("email", receiverEmail) } }
-                    .decodeSingleOrNull<SWallet>()
-                if (receiverWallet != null) {
-                    val receiverBalance = (receiverWallet.balance as Number).toDouble()
-                    client.from("wallets").update(
-                        mapOf("balance" to receiverBalance + amount)
-                    ) { filter { eq("email", receiverEmail) } }
+                val receiverSnapshot = firestore.collection("wallets")
+                    .whereEqualTo("email", receiverEmail)
+                    .get()
+                    .await()
+                if (!receiverSnapshot.isEmpty) {
+                    val receiverDoc = receiverSnapshot.documents.first()
+                    val receiverBalance = receiverDoc.getDouble("balance") ?: 0.0
+                    firestore.collection("wallets")
+                        .document(receiverDoc.id)
+                        .update("balance", receiverBalance + amount)
+                        .await()
                     walletDao.insertWallet(
                         LocalWallet(
-                            id = receiverWallet.user_id as String,
-                            userId = receiverWallet.user_id as String,
+                            id = receiverDoc.getString("user_id") ?: userId,
+                            userId = userId,
                             email = receiverEmail,
                             balance = receiverBalance + amount,
-                            createdAt = receiverWallet.created_at as String,
+                            createdAt = receiverDoc.getString("created_at") ?: OffsetDateTime.now().toString(),
                             updatedAt = OffsetDateTime.now().toString()
                         )
                     )
                 } else {
-                    val receiverUser = client.from("users")
-                        .select { filter { eq("email", receiverEmail) } }
-                        .decodeSingleOrNull<Map<String, Any>>()
-                    if (receiverUser == null) return@withContext Result.failure(IllegalStateException("Receiver not found"))
-                    val receiverUserId = receiverUser["id"] as String
-                    client.from("wallets").insert(
-                        mapOf(
-                            "user_id" to receiverUserId,
-                            "email" to receiverEmail,
-                            "balance" to amount
-                        )
+                    val receiverUserSnapshot = firestore.collection("users")
+                        .whereEqualTo("email", receiverEmail)
+                        .get()
+                        .await()
+                    if (receiverUserSnapshot.isEmpty) return@withContext Result.failure(IllegalStateException("Receiver not found"))
+                    val receiverUserId = receiverUserSnapshot.documents.first().getString("user_id") ?: ""
+                    val newWallet = mapOf(
+                        "user_id" to receiverUserId,
+                        "email" to receiverEmail,
+                        "balance" to amount,
+                        "created_at" to OffsetDateTime.now().toString(),
+                        "updated_at" to OffsetDateTime.now().toString()
                     )
-                    val newWallet = client.from("wallets")
-                        .select { filter { eq("email", receiverEmail) } }
-                        .decodeSingle<SWallet>()
+                    firestore.collection("wallets").document(receiverUserId).set(newWallet).await()
                     walletDao.insertWallet(
                         LocalWallet(
-                            id = newWallet.user_id as String,
+                            id = receiverUserId,
                             userId = receiverUserId,
                             email = receiverEmail,
                             balance = amount,
-                            createdAt = newWallet.created_at as String,
-                            updatedAt = newWallet.updated_at as String
+                            createdAt = OffsetDateTime.now().toString(),
+                            updatedAt = OffsetDateTime.now().toString()
                         )
                     )
                 }
-                // Insert transactions for both sender and receiver
-                client.from("transactions").insert(
+
+                firestore.collection("transactions").document(transactionId).set(
                     mapOf(
                         "id" to transactionId,
                         "user_id" to userId,
@@ -241,11 +246,20 @@ class WalletRepository @Inject constructor(
                         "timestamp" to timestamp,
                         "status" to "completed"
                     )
-                )
-                client.from("transactions").insert(
+                ).await()
+
+                val receiverWalletDoc = firestore.collection("wallets")
+                    .whereEqualTo("email", receiverEmail)
+                    .get()
+                    .await()
+                val receiverUserIdOnline = receiverWalletDoc.documents.firstOrNull()?.getString("user_id")
+                    ?: firestore.collection("users").whereEqualTo("email", receiverEmail).get().await().documents.firstOrNull()?.getString("user_id")
+                    ?: "offline_${receiverEmail.hashCode()}"
+
+                firestore.collection("transactions").document(UUID.randomUUID().toString()).set(
                     mapOf(
                         "id" to UUID.randomUUID().toString(),
-                        "user_id" to receiverWallet?.user_id,
+                        "user_id" to receiverUserIdOnline,
                         "sender_email" to senderEmail,
                         "receiver_email" to receiverEmail,
                         "amount" to amount,
@@ -253,7 +267,7 @@ class WalletRepository @Inject constructor(
                         "timestamp" to timestamp,
                         "status" to "completed"
                     )
-                )
+                ).await()
                 transactionDao.insertTransaction(
                     WalletTransactions(
                         id = transactionId,
@@ -269,7 +283,7 @@ class WalletRepository @Inject constructor(
                 transactionDao.insertTransaction(
                     WalletTransactions(
                         id = UUID.randomUUID().toString(),
-                        userId = receiverWallet?.user_id ?: "offline_${receiverEmail.hashCode()}",
+                        userId = receiverUserIdOnline,
                         senderEmail = senderEmail,
                         receiverEmail = receiverEmail,
                         amount = amount,
@@ -278,12 +292,10 @@ class WalletRepository @Inject constructor(
                         status = "completed"
                     )
                 )
-
                 val workRequest = OneTimeWorkRequestBuilder<SyncWorker>().build()
                 WorkManager.getInstance(context).enqueue(workRequest)
                 Result.success(Unit)
             } else {
-                // Offline: Update sender wallet
                 val senderWallet = walletDao.getWalletByEmail(senderEmail)
                     ?: return@withContext Result.failure(IllegalStateException("Sender wallet not found"))
                 if (senderWallet.balance < amount) return@withContext Result.failure(IllegalStateException("Insufficient balance"))
@@ -291,7 +303,6 @@ class WalletRepository @Inject constructor(
                     senderWallet.copy(balance = senderWallet.balance - amount, updatedAt = OffsetDateTime.now().toString())
                 )
 
-                // Offline: Update or create receiver wallet
                 val receiverWallet = walletDao.getWalletByEmail(receiverEmail)
                 if (receiverWallet != null) {
                     walletDao.insertWallet(
@@ -310,11 +321,10 @@ class WalletRepository @Inject constructor(
                     )
                 }
 
-                // Queue transaction for sync
                 pendingWalletUpdateDao.insertPendingUpdate(
                     PendingWalletUpdate(
                         email = senderEmail,
-                        amount = -amount, // Negative for sender
+                        amount = -amount,
                         timestamp = OffsetDateTime.now().toString(),
                         transactionType = "send",
                         relatedEmail = receiverEmail
@@ -323,14 +333,13 @@ class WalletRepository @Inject constructor(
                 pendingWalletUpdateDao.insertPendingUpdate(
                     PendingWalletUpdate(
                         email = receiverEmail,
-                        amount = amount, // Positive for receiver
+                        amount = amount,
                         timestamp = OffsetDateTime.now().toString(),
                         transactionType = "receive",
                         relatedEmail = senderEmail
                     )
                 )
 
-                // Insert transactions
                 transactionDao.insertTransaction(
                     WalletTransactions(
                         id = transactionId,
@@ -358,6 +367,7 @@ class WalletRepository @Inject constructor(
                 Result.success(Unit)
             }
         } catch (e: Exception) {
+            Log.e("WalletRepository", "Error sending money: ${e.message}", e)
             Result.failure(e)
         }
     }
@@ -366,86 +376,84 @@ class WalletRepository @Inject constructor(
         try {
             if (amount <= 0) return@withContext Result.failure(IllegalArgumentException("Amount must be positive"))
             if (senderEmail == receiverEmail) return@withContext Result.failure(IllegalArgumentException("Cannot receive money from self"))
-
-            val userId = supabaseClientProvider.client.auth.currentUserOrNull()?.id
-                ?: "offline_${receiverEmail.hashCode()}"
+            val userId = firebaseAuth.currentUser?.uid ?: "offline_${receiverEmail.hashCode()}"
             val transactionId = UUID.randomUUID().toString()
             val timestamp = OffsetDateTime.now().toString()
 
             if (isOnline()) {
-                val client = supabaseClientProvider.client
-                // Verify sender exists
-                val senderWallet = client.from("wallets")
-                    .select { filter { eq("email", senderEmail) } }
-                    .decodeSingleOrNull<SWallet>()
-                if (senderWallet == null) return@withContext Result.failure(IllegalStateException("Sender not found"))
-                val senderBalance = (senderWallet.balance as Number).toDouble()
+                val senderSnapshot = firestore.collection("wallets")
+                    .whereEqualTo("email", senderEmail)
+                    .get()
+                    .await()
+                if (senderSnapshot.isEmpty) return@withContext Result.failure(IllegalStateException("Sender not found"))
+                val senderDoc = senderSnapshot.documents.first()
+                val senderBalance = senderDoc.getDouble("balance") ?: 0.0
                 if (senderBalance < amount) return@withContext Result.failure(IllegalStateException("Sender has insufficient balance"))
 
-                // Update sender wallet
-                client.from("wallets").update(
-                    mapOf("balance" to senderBalance - amount)
-                ) { filter { eq("email", senderEmail) } }
+                firestore.collection("wallets")
+                    .document(senderDoc.id)
+                    .update("balance", senderBalance - amount)
+                    .await()
                 walletDao.insertWallet(
                     LocalWallet(
-                        id = senderWallet.user_id as String,
-                        userId = senderWallet.user_id as String,
+                        id = senderDoc.getString("user_id") ?: userId,
+                        userId = userId,
                         email = senderEmail,
                         balance = senderBalance - amount,
-                        createdAt = senderWallet.created_at as String,
+                        createdAt = senderDoc.getString("created_at") ?: OffsetDateTime.now().toString(),
                         updatedAt = OffsetDateTime.now().toString()
                     )
                 )
 
-                // Update or create receiver wallet
-                val receiverWallet = client.from("wallets")
-                    .select { filter { eq("email", receiverEmail) } }
-                    .decodeSingleOrNull<SWallet>()
-                if (receiverWallet != null) {
-                    val receiverBalance = (receiverWallet.balance as Number).toDouble()
-                    client.from("wallets").update(
-                        mapOf("balance" to receiverBalance + amount)
-                    ) { filter { eq("email", receiverEmail) } }
+                val receiverSnapshot = firestore.collection("wallets")
+                    .whereEqualTo("email", receiverEmail)
+                    .get()
+                    .await()
+                if (!receiverSnapshot.isEmpty) {
+                    val receiverDoc = receiverSnapshot.documents.first()
+                    val receiverBalance = receiverDoc.getDouble("balance") ?: 0.0
+                    firestore.collection("wallets")
+                        .document(receiverDoc.id)
+                        .update("balance", receiverBalance + amount)
+                        .await()
                     walletDao.insertWallet(
                         LocalWallet(
-                            id = receiverWallet.user_id as String,
-                            userId = receiverWallet.user_id as String,
+                            id = receiverDoc.getString("user_id") ?: userId,
+                            userId = userId,
                             email = receiverEmail,
                             balance = receiverBalance + amount,
-                            createdAt = receiverWallet.created_at as String,
+                            createdAt = receiverDoc.getString("created_at") ?: OffsetDateTime.now().toString(),
                             updatedAt = OffsetDateTime.now().toString()
                         )
                     )
                 } else {
-                    val receiverUser = client.from("users")
-                        .select { filter { eq("email", receiverEmail) } }
-                        .decodeSingleOrNull<Map<String, Any>>()
-                    if (receiverUser == null) return@withContext Result.failure(IllegalStateException("Receiver not found"))
-                    val receiverUserId = receiverUser["id"] as String
-                    client.from("wallets").insert(
-                        mapOf(
-                            "user_id" to receiverUserId,
-                            "email" to receiverEmail,
-                            "balance" to amount
-                        )
+                    val receiverUserSnapshot = firestore.collection("users")
+                        .whereEqualTo("email", receiverEmail)
+                        .get()
+                        .await()
+                    if (receiverUserSnapshot.isEmpty) return@withContext Result.failure(IllegalStateException("Receiver not found"))
+                    val receiverUserId = receiverUserSnapshot.documents.first().getString("user_id") ?: ""
+                    val newWallet = mapOf(
+                        "user_id" to receiverUserId,
+                        "email" to receiverEmail,
+                        "balance" to amount,
+                        "created_at" to OffsetDateTime.now().toString(),
+                        "updated_at" to OffsetDateTime.now().toString()
                     )
-                    val newWallet = client.from("wallets")
-                        .select { filter { eq("email", receiverEmail) } }
-                        .decodeSingle<SWallet>()
+                    firestore.collection("wallets").document(receiverUserId).set(newWallet).await()
                     walletDao.insertWallet(
                         LocalWallet(
-                            id = newWallet.user_id as String,
+                            id = receiverUserId,
                             userId = receiverUserId,
                             email = receiverEmail,
                             balance = amount,
-                            createdAt = newWallet.created_at as String,
-                            updatedAt = newWallet.updated_at as String
+                            createdAt = OffsetDateTime.now().toString(),
+                            updatedAt = OffsetDateTime.now().toString()
                         )
                     )
                 }
 
-                // Insert transactions
-                client.from("transactions").insert(
+                firestore.collection("transactions").document(transactionId).set(
                     mapOf(
                         "id" to transactionId,
                         "user_id" to userId,
@@ -456,11 +464,18 @@ class WalletRepository @Inject constructor(
                         "timestamp" to timestamp,
                         "status" to "completed"
                     )
-                )
-                client.from("transactions").insert(
+                ).await()
+                val senderWalletDoc = firestore.collection("wallets")
+                    .whereEqualTo("email", senderEmail)
+                    .get()
+                    .await()
+                val senderUserIdOnline = senderWalletDoc.documents.firstOrNull()?.getString("user_id")
+                    ?: firestore.collection("users").whereEqualTo("email", senderEmail).get().await().documents.firstOrNull()?.getString("user_id")
+                    ?: "offline_${senderEmail.hashCode()}"
+                firestore.collection("transactions").document(UUID.randomUUID().toString()).set(
                     mapOf(
                         "id" to UUID.randomUUID().toString(),
-                        "user_id" to senderWallet.user_id,
+                        "user_id" to senderUserIdOnline,
                         "sender_email" to senderEmail,
                         "receiver_email" to receiverEmail,
                         "amount" to amount,
@@ -468,7 +483,7 @@ class WalletRepository @Inject constructor(
                         "timestamp" to timestamp,
                         "status" to "completed"
                     )
-                )
+                ).await()
                 transactionDao.insertTransaction(
                     WalletTransactions(
                         id = transactionId,
@@ -484,7 +499,7 @@ class WalletRepository @Inject constructor(
                 transactionDao.insertTransaction(
                     WalletTransactions(
                         id = UUID.randomUUID().toString(),
-                        userId = senderWallet.user_id as String,
+                        userId = senderUserIdOnline,
                         senderEmail = senderEmail,
                         receiverEmail = receiverEmail,
                         amount = amount,
@@ -493,20 +508,17 @@ class WalletRepository @Inject constructor(
                         status = "completed"
                     )
                 )
-
                 val workRequest = OneTimeWorkRequestBuilder<SyncWorker>().build()
                 WorkManager.getInstance(context).enqueue(workRequest)
                 Result.success(Unit)
             } else {
-                // Offline: Update sender wallet
                 val senderWallet = walletDao.getWalletByEmail(senderEmail)
-                    ?: return@withContext Result.failure(IllegalStateException("Sender not found"))
-                if (senderWallet.balance < amount) return@withContext Result.failure(IllegalStateException("Sender has insufficient balance"))
+                    ?: return@withContext Result.failure(IllegalStateException("Sender wallet not found"))
+                if (senderWallet.balance < amount) return@withContext Result.failure(IllegalStateException("Insufficient balance"))
                 walletDao.insertWallet(
                     senderWallet.copy(balance = senderWallet.balance - amount, updatedAt = OffsetDateTime.now().toString())
                 )
 
-                // Offline: Update or create receiver wallet
                 val receiverWallet = walletDao.getWalletByEmail(receiverEmail)
                 if (receiverWallet != null) {
                     walletDao.insertWallet(
@@ -525,7 +537,6 @@ class WalletRepository @Inject constructor(
                     )
                 }
 
-                // Queue transaction for sync
                 pendingWalletUpdateDao.insertPendingUpdate(
                     PendingWalletUpdate(
                         email = senderEmail,
@@ -545,7 +556,6 @@ class WalletRepository @Inject constructor(
                     )
                 )
 
-                // Insert transactions
                 transactionDao.insertTransaction(
                     WalletTransactions(
                         id = transactionId,
@@ -573,6 +583,7 @@ class WalletRepository @Inject constructor(
                 Result.success(Unit)
             }
         } catch (e: Exception) {
+            Log.e("WalletRepository", "Error receiving money: ${e.message}", e)
             Result.failure(e)
         }
     }
@@ -580,10 +591,12 @@ class WalletRepository @Inject constructor(
     suspend fun getTransactions(userId: String): Result<List<WalletTransactions>> = withContext(Dispatchers.IO) {
         try {
             if (isOnline()) {
-                val client = supabaseClientProvider.client
-                val response = client.from("transactions")
-                    .select { filter { eq("user_id", userId) } }
-                    .decodeList<Map<String, Any>>()
+
+                val response = firestore.collection("transactions")
+                    .whereEqualTo("user_id", userId)
+                    .get()
+                    .await()
+
                 val transactions = response.map {
                     WalletTransactions(
                         id = it["id"] as String,
@@ -661,40 +674,4 @@ class WalletRepository @Inject constructor(
     }
 
 
-//
-//    suspend fun syncPendingTransactions() {
-//        if (!isOnline()) {
-//            Log.d("WalletRepository", "Offline: cannot sync pending transactions")
-//            return
-//        }
-//        val pendingUpdates = withContext(Dispatchers.IO) {
-//            pendingWalletUpdateDao.getPendingUpdates()
-//        }
-//        for (update in pendingUpdates) {
-//            try {
-//                supabase.from("wallets").update({ set("balance", update.newBalance) }) {
-//                    filter { eq("userId", update.userId) }
-//                }
-//                withContext(Dispatchers.IO) {
-//                    pendingWalletUpdateDao.delete(update)
-//                }
-//            } catch (e: Exception) {
-//                Log.e("WalletRepository", "Error syncing wallet update: ${e.message}", e)
-//            }
-//        }
-//
-//        val pendingTransactions = withContext(Dispatchers.IO) {
-//            walletTransactionDao.getPendingTransactions()
-//        }
-//        for (transaction in pendingTransactions) {
-//            try {
-//                supabase.from("transactions").insert(transaction)
-//                withContext(Dispatchers.IO) {
-//                    walletTransactionDao.updateStatus(transaction.id, "completed")
-//                }
-//            } catch (e: Exception) {
-//                Log.e("WalletRepository", "Error syncing transaction: ${e.message}", e)
-//            }
-//        }
-//    }
 }

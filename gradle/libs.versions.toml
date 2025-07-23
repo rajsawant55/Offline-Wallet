@@ -22,7 +22,6 @@ mlkitBarcodeScanning = "17.3.0"
 androidxBiometric = "1.1.0"
 bcrypt = "0.4"
 playServicesAuth = "21.3.0"
-supabase = "3.0.1"
 workRuntimeKtx = "2.9.1"
 hiltWork = "1.2.0"
 identityJvm = "202411.1"
@@ -30,7 +29,7 @@ ktorClientOkhttp = "3.0.0"
 ktorClientCore = "3.0.0"
 kotlinxSerializationJson = "1.6.3"
 datastoreCoreAndroid = "1.1.7"
-firebaseBom = "33.1.0"
+firebaseBom = "34.0.0"
 
 [libraries]
 zxing-android-embedded = { group = "com.journeyapps", name = "zxing-android-embedded", version = "4.3.0" }
@@ -63,17 +62,15 @@ mlkit-barcode-scanning = { group = "com.google.mlkit", name = "barcode-scanning"
 androidx-biometric = { group = "androidx.biometric", name = "biometric", version.ref = "androidxBiometric" }
 bcrypt = { group = "org.mindrot", name = "jbcrypt", version.ref = "bcrypt" }
 play-services-auth = { group = "com.google.android.gms", name = "play-services-auth", version.ref = "playServicesAuth" }
-supabase-auth = { group = "io.github.jan-tennert.supabase", name = "auth-kt", version.ref = "supabase" }
-supabase-postgrest = { group = "io.github.jan-tennert.supabase", name = "postgrest-kt", version.ref = "supabase" }
 androidx-hilt-work = { group = "androidx.hilt", name = "hilt-work", version.ref = "hiltWork" }
 identity-jvm = { group = "com.android.identity", name = "identity-jvm", version.ref = "identityJvm" }
 ktor-client-okhttp = { group = "io.ktor", name = "ktor-client-okhttp", version.ref = "ktorClientOkhttp" }
 ktor-client-core = { group = "io.ktor", name = "ktor-client-core", version.ref = "ktorClientCore" }
 kotlinx-serialization-json = { group = "org.jetbrains.kotlinx", name = "kotlinx-serialization-json", version.ref = "kotlinxSerializationJson" }
 androidx-datastore-core-android = { group = "androidx.datastore", name = "datastore-core-android", version.ref = "datastoreCoreAndroid" }
-firebase-bom = { group = "com.google.firebase", name = "firebase-bom", version.ref = "firebaseBom" }
-firebase-auth-ktx = { group = "com.google.firebase", name = "firebase-auth-ktx" }
-firebase-firestore-ktx = { group = "com.google.firebase", name = "firebase-firestore-ktx" }
+firebase-auth-ktx = { group = "com.google.firebase", name = "firebase-auth-ktx", version="23.2.1" }
+firebase-firestore-ktx = { group = "com.google.firebase", name = "firebase-firestore-ktx", version= "25.1.4"}
+firebase-core = { group = "com.google.firebase", name = "firebase-core" ,version="21.1.1"}
 
 
 [plugins]

@@ -1,13 +1,13 @@
 {
   "project_info": {
-    "project_number": "181037155541",
-    "project_id": "offlinewallet-69044",
-    "storage_bucket": "offlinewallet-69044.firebasestorage.app"
+    "project_number": "886527037769",
+    "project_id": "binarybunchpay",
+    "storage_bucket": "binarybunchpay.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:181037155541:android:2ef19c15a108e3c7c80e5c",
+        "mobilesdk_app_id": "1:886527037769:android:08a3752badee1a60a2ca98",
         "android_client_info": {
           "package_name": "com.hackathon.offlinewallet"
         }
@@ -15,7 +15,7 @@
       "oauth_client": [],
       "api_key": [
         {
-          "current_key": "AIzaSyC2k5l4I0xJrREQUM1E1qcW9NIzFVJmIPc"
+          "current_key": "AIzaSyB4jP3aIeuZwaWf53WT2QMPY2rITo5DCA8"
         }
       ],
       "services": {

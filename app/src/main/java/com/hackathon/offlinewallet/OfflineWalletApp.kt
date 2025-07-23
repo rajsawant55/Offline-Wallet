@@ -7,8 +7,9 @@ import androidx.work.Configuration
 import androidx.work.ListenableWorker
 import androidx.work.WorkerFactory
 import androidx.work.WorkerParameters
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.FirebaseFirestore
 import com.hackathon.offlinewallet.data.PendingWalletUpdateDao
-import com.hackathon.offlinewallet.data.SupabaseClientProvider
 import com.hackathon.offlinewallet.data.SyncWorker
 import com.hackathon.offlinewallet.data.UserDao
 import com.hackathon.offlinewallet.data.WalletDao
@@ -33,8 +34,8 @@ class SyncWorkerFactory @Inject constructor(
     private val userDao: UserDao,
     private val walletDao: WalletDao,
     private val walletTransactionDao: WalletTransactionDao,
-    private val supabaseClientProvider: SupabaseClientProvider
-
+    private val firebaseAuth: FirebaseAuth,
+    private val firestore: FirebaseFirestore
 ) : WorkerFactory() {
     override fun createWorker(
         appContext: Context,
@@ -50,7 +51,8 @@ class SyncWorkerFactory @Inject constructor(
                 userDao = userDao,
                 walletDao = walletDao,
                 walletTransactionDao = walletTransactionDao,
-                supabaseClientProvider = supabaseClientProvider,
+                firebaseAuth = firebaseAuth,
+                firestore = firestore
             )
             else -> null
         }
