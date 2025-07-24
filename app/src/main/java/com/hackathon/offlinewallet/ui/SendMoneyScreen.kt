@@ -1,28 +1,31 @@
 package com.hackathon.offlinewallet.ui
 
-
-import com.hackathon.offlinewallet.ui.AuthViewModel
-import com.hackathon.offlinewallet.ui.WalletViewModel
-
 import android.Manifest
+import android.annotation.SuppressLint
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothSocket
+import android.content.BroadcastReceiver
 import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.PackageManager
+import android.provider.Settings
 import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.RequiresPermission
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.scale
@@ -43,11 +46,14 @@ import java.io.InputStream
 import java.io.OutputStream
 import java.time.OffsetDateTime
 import java.util.UUID
-import androidx.compose.runtime.collectAsState as collectAsState1
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SendMoneyScreen(navController: NavController, authViewModel: AuthViewModel, walletViewModel: WalletViewModel = hiltViewModel()) {
+fun SendMoneyScreen(
+    navController: NavController,
+    authViewModel: AuthViewModel,
+    walletViewModel: WalletViewModel = hiltViewModel()
+) {
     var receiverEmail by remember { mutableStateOf("") }
     var amount by remember { mutableStateOf("") }
     var isLoading by remember { mutableStateOf(false) }
@@ -59,8 +65,12 @@ fun SendMoneyScreen(navController: NavController, authViewModel: AuthViewModel, 
     val scale by animateFloatAsState(if (isPressed) 0.95f else 1f)
     val coroutineScope = rememberCoroutineScope()
     val context = LocalContext.current
-    val isOnline by walletViewModel.isOnline.collectAsState1()
+    val isOnline by walletViewModel.isOnline.collectAsState()
     var isBluetoothEnabled by remember { mutableStateOf(BluetoothAdapter.getDefaultAdapter()?.isEnabled == true) }
+    var showDeviceDialog by remember { mutableStateOf(false) }
+    var showPairingPrompt by remember { mutableStateOf(false) }
+    val discoveredDevices = remember { mutableStateListOf<BluetoothDevice>() }
+
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { permissions ->
@@ -72,13 +82,24 @@ fun SendMoneyScreen(navController: NavController, authViewModel: AuthViewModel, 
             isBluetoothEnabled = BluetoothAdapter.getDefaultAdapter()?.isEnabled == true
         }
     }
+
     val scanLauncher = rememberLauncherForActivityResult(ScanContract()) { result ->
         if (result.contents != null) {
             receiverEmail = result.contents
         }
     }
 
-    LaunchedEffect(Unit) {
+    val settingsLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) {
+        isBluetoothEnabled = BluetoothAdapter.getDefaultAdapter()?.isEnabled == true
+        if (BluetoothAdapter.getDefaultAdapter()?.bondedDevices?.isNotEmpty() == true) {
+            showDeviceDialog = true
+        }
+    }
+
+    // Register BroadcastReceiver for Bluetooth discovery
+    DisposableEffect(Unit) {
         val permissions = arrayOf(
             Manifest.permission.CAMERA,
             Manifest.permission.BLUETOOTH_SCAN,
@@ -88,6 +109,74 @@ fun SendMoneyScreen(navController: NavController, authViewModel: AuthViewModel, 
         if (permissions.any { ContextCompat.checkSelfPermission(context, it) != PackageManager.PERMISSION_GRANTED }) {
             permissionLauncher.launch(permissions)
         }
+
+        val filter = IntentFilter().apply {
+            addAction(BluetoothDevice.ACTION_FOUND)
+            addAction(BluetoothAdapter.ACTION_DISCOVERY_FINISHED)
+        }
+        val receiver = object : BroadcastReceiver() {
+            override fun onReceive(context: Context, intent: Intent) {
+                when (intent.action) {
+                    BluetoothDevice.ACTION_FOUND -> {
+                        val device = intent.getParcelableExtra<BluetoothDevice>(BluetoothDevice.EXTRA_DEVICE)
+                        if (device != null && !discoveredDevices.contains(device)) {
+                            discoveredDevices.add(device)
+                        }
+                    }
+                    BluetoothAdapter.ACTION_DISCOVERY_FINISHED -> {
+                        // Discovery finished, dialog will show discovered devices
+                    }
+                }
+            }
+        }
+        context.registerReceiver(receiver, filter)
+        onDispose {
+            context.unregisterReceiver(receiver)
+            BluetoothAdapter.getDefaultAdapter()?.cancelDiscovery()
+        }
+    }
+
+    // Device selection dialog
+    if (showDeviceDialog) {
+        DeviceSelectionDialog(
+            pairedDevices = BluetoothAdapter.getDefaultAdapter()?.bondedDevices?.toList() ?: emptyList(),
+            discoveredDevices = discoveredDevices,
+            onDeviceSelected = { device ->
+                selectedDevice = device
+                showDeviceDialog = false
+                coroutineScope.launch {
+                    snackbarHostState.showSnackbar("Selected device: ${device.name ?: "Unknown"}")
+                }
+            },
+            onDismiss = {
+                showDeviceDialog = false
+                BluetoothAdapter.getDefaultAdapter()?.cancelDiscovery()
+            }
+        )
+    }
+
+    // Pairing prompt dialog
+    if (showPairingPrompt) {
+        AlertDialog(
+            onDismissRequest = { showPairingPrompt = false },
+            title = { Text("No Paired Devices") },
+            text = { Text("No paired Bluetooth devices found. Would you like to pair a device now?") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showPairingPrompt = false
+                        settingsLauncher.launch(Intent(Settings.ACTION_BLUETOOTH_SETTINGS))
+                    }
+                ) {
+                    Text("Pair Device")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showPairingPrompt = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
     }
 
     Scaffold(
@@ -153,11 +242,9 @@ fun SendMoneyScreen(navController: NavController, authViewModel: AuthViewModel, 
                     Spacer(modifier = Modifier.height(16.dp))
                     Button(
                         onClick = {
-                            discoverAndSelectDevice(context) { device ->
-                                selectedDevice = device
-                                coroutineScope.launch {
-                                    snackbarHostState.showSnackbar("Selected device: ${device.name}")
-                                }
+                            discoverAndSelectDevice(context) {
+                                showDeviceDialog = true
+                                showPairingPrompt = BluetoothAdapter.getDefaultAdapter()?.bondedDevices?.isEmpty() ?: true
                             }
                         },
                         modifier = Modifier.fillMaxWidth(),
@@ -276,19 +363,94 @@ fun SendMoneyScreen(navController: NavController, authViewModel: AuthViewModel, 
 }
 
 @RequiresPermission(allOf = [Manifest.permission.BLUETOOTH_CONNECT, Manifest.permission.BLUETOOTH_SCAN])
-fun discoverAndSelectDevice(context: Context, onDeviceSelected: (BluetoothDevice) -> Unit) {
+fun discoverAndSelectDevice(context: Context, onDiscoveryStarted: () -> Unit) {
     val bluetoothAdapter = BluetoothAdapter.getDefaultAdapter()
-    if (bluetoothAdapter == null || !bluetoothAdapter.isEnabled) return
+    if (bluetoothAdapter == null || !bluetoothAdapter.isEnabled) {
+        Log.w("SendMoneyScreen", "Bluetooth is not enabled or not supported")
+        return
+    }
 
     val pairedDevices = bluetoothAdapter.bondedDevices
-    if (pairedDevices.isNotEmpty()) {
-        // For simplicity, select the first device; ideally, show a UI dialog
-        val targetDevice = pairedDevices.first()
-        onDeviceSelected(targetDevice)
-    } else {
-        // Start discovery (requires BroadcastReceiver implementation)
-        bluetoothAdapter.startDiscovery()
-        // TODO: Implement BroadcastReceiver to handle discovered devices
+    // Trigger dialog, let the dialog handle pairing prompt if no paired devices
+    bluetoothAdapter.startDiscovery()
+    onDiscoveryStarted()
+}
+
+@Composable
+fun DeviceSelectionDialog(
+    pairedDevices: List<BluetoothDevice>,
+    discoveredDevices: List<BluetoothDevice>,
+    onDeviceSelected: (BluetoothDevice) -> Unit,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = { onDismiss() },
+        title = { Text("Select Bluetooth Device") },
+        text = {
+            Column {
+                if (pairedDevices.isEmpty() && discoveredDevices.isEmpty()) {
+                    Text("No devices found. Please ensure Bluetooth is enabled and devices are discoverable.")
+                } else {
+                    LazyColumn {
+                        if (pairedDevices.isNotEmpty()) {
+                            item {
+                                Text(
+                                    text = "Paired Devices",
+                                    style = MaterialTheme.typography.titleSmall,
+                                    modifier = Modifier.padding(bottom = 8.dp)
+                                )
+                            }
+                            items(pairedDevices, key = { it.address }) { device ->
+                                DeviceItem(device, onDeviceSelected)
+                                Spacer(modifier = Modifier.height(4.dp))
+                            }
+                        }
+                        if (discoveredDevices.isNotEmpty()) {
+                            item {
+                                Text(
+                                    text = "Discovered Devices",
+                                    style = MaterialTheme.typography.titleSmall,
+                                    modifier = Modifier.padding(vertical = 8.dp)
+                                )
+                            }
+                            items(discoveredDevices, key = { it.address }) { device ->
+                                DeviceItem(device, onDeviceSelected)
+                                Spacer(modifier = Modifier.height(4.dp))
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { onDismiss() }) {
+                Text("Cancel")
+            }
+        }
+    )
+}
+
+@SuppressLint("MissingPermission")
+@Composable
+fun DeviceItem(device: BluetoothDevice, onDeviceSelected: (BluetoothDevice) -> Unit) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onDeviceSelected(device) },
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = device.name ?: "Unknown Device (${device.address})",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+        }
     }
 }
 
