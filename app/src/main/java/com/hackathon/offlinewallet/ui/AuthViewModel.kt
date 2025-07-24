@@ -84,6 +84,11 @@ class AuthViewModel @Inject constructor(
         return _user.value?.email
     }
 
+    fun getCurrentUserId(): String? {
+        return _user.value?.id
+    }
+
+
     fun getUser(email: String): StateFlow<User?> {
         viewModelScope.launch {
             fetchUserData(email)

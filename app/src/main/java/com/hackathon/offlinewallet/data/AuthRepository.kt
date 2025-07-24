@@ -9,6 +9,7 @@ import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
+import org.mindrot.jbcrypt.BCrypt
 import java.security.MessageDigest
 import java.time.OffsetDateTime
 import javax.inject.Inject
@@ -39,7 +40,7 @@ class AuthRepository @Inject constructor(
         try {
             if (isOnline()) {
                 Log.d("AuthRepository", "Initiating signup for $email")
-
+                val passwordHash = BCrypt.hashpw(password, BCrypt.gensalt())
                 val authResult = firebaseAuth.createUserWithEmailAndPassword(email, password).await()
                 val userId = authResult.user?.uid ?: return@withContext Result.failure(IllegalStateException("User creation failed"))
                 val userData = mapOf(
@@ -54,7 +55,7 @@ class AuthRepository @Inject constructor(
                         id = userId,
                         email = email,
                         username = username,
-                        passwordHash = password, // Note: Store securely in production
+                        passwordHash = password.toSHA256(), // Note: Store securely in production
                         createdAt = OffsetDateTime.now().toString(),
                         needsSync = true
                     )
@@ -106,7 +107,7 @@ class AuthRepository @Inject constructor(
                         id = userId,
                         email = email,
                         username = userDoc.getString("user_name") ?: "",
-                        passwordHash = password, // Note: Store securely in production
+                        passwordHash = password.toSHA256(), // Note: Store securely in production
                         createdAt = userDoc.getString("created_at") ?: OffsetDateTime.now().toString(),
                         needsSync = true
                     )

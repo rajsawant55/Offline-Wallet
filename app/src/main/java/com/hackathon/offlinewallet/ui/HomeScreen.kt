@@ -1,6 +1,7 @@
 package com.hackathon.offlinewallet.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -11,19 +12,20 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CallReceived
+import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Send
-import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.hackathon.offlinewallet.data.Wallet
-
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -36,32 +38,74 @@ fun HomeScreen(navController: NavController, authViewModel: AuthViewModel, walle
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("BinaryBunch Pay") },
-                actions = {
-                    Row {
+                title = {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(end = 8.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
                         Text(
-                            text = if (isOnline) "Online" else "Offline",
-                            color = if (isOnline) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.error,
-                            modifier = Modifier.padding(end = 8.dp)
+                            text = "BinaryBunch Pay",
+                            style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
+                            color = MaterialTheme.colorScheme.onPrimaryContainer
                         )
-                        TextButton(
-                            onClick = {
-                                haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
-                                authViewModel.signOut {
-                                    navController.navigate("login") {
-                                        popUpTo("home") { inclusive = true }
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            // Online/Offline status box
+                            Box(
+                                modifier = Modifier
+                                    .size(60.dp, 32.dp)
+                                    .clip(MaterialTheme.shapes.small)
+                                    .background(
+                                        color = if (isOnline) MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)
+                                        else MaterialTheme.colorScheme.error.copy(alpha = 0.1f)
+                                    )
+                                    .border(
+                                        width = 1.dp,
+                                        color = if (isOnline) MaterialTheme.colorScheme.primary
+                                        else MaterialTheme.colorScheme.error,
+                                        shape = MaterialTheme.shapes.small
+                                    ),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = if (isOnline) "Online" else "Offline",
+                                    style = MaterialTheme.typography.bodyMedium.copy(fontSize = 14.sp),
+                                    color = if (isOnline) MaterialTheme.colorScheme.primary
+                                    else MaterialTheme.colorScheme.error
+                                )
+                            }
+                            // Logout button
+                            TextButton(
+                                onClick = {
+                                    haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
+                                    authViewModel.signOut {
+                                        navController.navigate("login") {
+                                            popUpTo("home") { inclusive = true }
+                                        }
                                     }
                                 }
+                            ) {
+                                Text(
+                                    text = "Logout",
+                                    style = MaterialTheme.typography.bodyMedium.copy(
+                                        fontSize = 14.sp,
+                                        fontWeight = FontWeight.Medium
+                                    ),
+                                    color = MaterialTheme.colorScheme.error
+                                )
                             }
-                        ) {
-                            Text(
-                                text = "Logout",
-                                style = MaterialTheme.typography.bodyLarge,
-                                color = MaterialTheme.colorScheme.error
-                            )
                         }
                     }
-                }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.primaryContainer,
+                    titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                )
             )
         }
     ) { innerPadding ->
@@ -69,35 +113,35 @@ fun HomeScreen(navController: NavController, authViewModel: AuthViewModel, walle
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
-                .padding(16.dp)
+                .padding(horizontal = 16.dp)
                 .verticalScroll(rememberScrollState()),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(vertical = 8.dp),
-                elevation = CardDefaults.cardElevation(8.dp),
+                    .padding(vertical = 12.dp)
+                    .shadow(8.dp, shape = RoundedCornerShape(16.dp)),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primary)
             ) {
                 Column(
-                    modifier = Modifier.padding(16.dp),
+                    modifier = Modifier.padding(20.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Text(
                         text = "Balance",
-                        style = MaterialTheme.typography.titleMedium,
+                        style = MaterialTheme.typography.titleMedium.copy(fontSize = 18.sp),
                         color = Color.White
                     )
                     Text(
                         text = wallet?.balance?.let { "₹${String.format("%.2f", it)}" } ?: "₹0.00",
-                        style = MaterialTheme.typography.headlineLarge,
+                        style = MaterialTheme.typography.headlineLarge.copy(fontSize = 32.sp),
                         fontWeight = FontWeight.Bold,
                         color = Color.White
                     )
                 }
             }
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(24.dp))
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceEvenly
@@ -119,16 +163,17 @@ fun HomeScreen(navController: NavController, authViewModel: AuthViewModel, walle
                     }
                 )
             }
+            Spacer(modifier = Modifier.height(16.dp))
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceEvenly
             ) {
                 ActionCard(
-                    icon = Icons.Default.Send,
-                    label = "Pay Merchant",
+                    icon = Icons.Default.History,
+                    label = "View Transaction",
                     onClick = {
                         haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
-                        navController.navigate("merchant_payment")
+                        navController.navigate("transactions")
                     }
                 )
                 ActionCard(
@@ -148,9 +193,10 @@ fun HomeScreen(navController: NavController, authViewModel: AuthViewModel, walle
 fun ActionCard(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, onClick: () -> Unit) {
     Card(
         modifier = Modifier
-            .size(150.dp)
+            .size(160.dp)
+            .shadow(4.dp, shape = RoundedCornerShape(12.dp))
             .clickable { onClick() },
-        elevation = CardDefaults.cardElevation(4.dp)
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
     ) {
         Column(
             modifier = Modifier
@@ -162,14 +208,17 @@ fun ActionCard(icon: androidx.compose.ui.graphics.vector.ImageVector, label: Str
             Icon(
                 imageVector = icon,
                 contentDescription = label,
-                modifier = Modifier.size(48.dp),
+                modifier = Modifier.size(52.dp),
                 tint = MaterialTheme.colorScheme.primary
             )
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(12.dp))
             Text(
                 text = label,
-                style = MaterialTheme.typography.bodyMedium,
-                fontWeight = FontWeight.Medium
+                style = MaterialTheme.typography.bodyLarge.copy(
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Medium
+                ),
+                color = MaterialTheme.colorScheme.onSurface
             )
         }
     }

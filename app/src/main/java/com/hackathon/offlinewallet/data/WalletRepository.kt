@@ -119,33 +119,34 @@ class WalletRepository @Inject constructor(
                 Log.d("WalletRepository", "Enqueuing SyncWorker for email: $email, amount: $amount")
                 Result.success(Unit)
             } else {
-                val localWallet = walletDao.getWalletByEmail(email)
-                if (localWallet != null) {
-                    walletDao.insertWallet(
-                        localWallet.copy(balance = localWallet.balance + amount, updatedAt = OffsetDateTime.now().toString())
-                    )
-                } else {
-                    walletDao.insertWallet(
-                        LocalWallet(
-                            id = "offline_${email.hashCode()}",
-                            userId = "offline_${email.hashCode()}",
-                            email = email,
-                            balance = amount,
-                            createdAt = OffsetDateTime.now().toString(),
-                            updatedAt = OffsetDateTime.now().toString()
-                        )
-                    )
-                }
-                pendingWalletUpdateDao.insertPendingUpdate(
-                    PendingWalletUpdate(
-                        email = email,
-                        amount = amount,
-                        timestamp = OffsetDateTime.now().toString(),
-                        transactionType = "add",
-                        relatedEmail = email
-                    )
-                )
-                Result.success(Unit)
+//                val localWallet = walletDao.getWalletByEmail(email)
+//                if (localWallet != null) {
+//                    walletDao.insertWallet(
+//                        localWallet.copy(balance = localWallet.balance + amount, updatedAt = OffsetDateTime.now().toString())
+//                    )
+//                } else {
+//                    walletDao.insertWallet(
+//                        LocalWallet(
+//                            id = "offline_${email.hashCode()}",
+//                            userId = "offline_${email.hashCode()}",
+//                            email = email,
+//                            balance = amount,
+//                            createdAt = OffsetDateTime.now().toString(),
+//                            updatedAt = OffsetDateTime.now().toString()
+//                        )
+//                    )
+//                }
+//                pendingWalletUpdateDao.insertPendingUpdate(
+//                    PendingWalletUpdate(
+//                        email = email,
+//                        amount = amount,
+//                        timestamp = OffsetDateTime.now().toString(),
+//                        transactionType = "add",
+//                        relatedEmail = email
+//                    )
+//                )
+                Result.failure(IllegalStateException("Add Money disabled in Offline mode"))
+
             }
         } catch (e: Exception) {
             Log.e("WalletRepository", "Error adding money: ${e.message}", e)
@@ -297,9 +298,10 @@ class WalletRepository @Inject constructor(
             } else {
                 val senderWallet = walletDao.getWalletByEmail(senderEmail)
                     ?: return@withContext Result.failure(IllegalStateException("Sender wallet not found"))
-                if (senderWallet.balance < amount) return@withContext Result.failure(IllegalStateException("Insufficient balance"))
+                val currBalance : Double = senderWallet.balance
+                if (currBalance <= amount) return@withContext Result.failure(IllegalStateException("Insufficient balance"))
                 walletDao.insertWallet(
-                    senderWallet.copy(balance = senderWallet.balance - amount, updatedAt = OffsetDateTime.now().toString())
+                    senderWallet.copy(balance = currBalance - amount, updatedAt = OffsetDateTime.now().toString())
                 )
 
                 val receiverWallet = walletDao.getWalletByEmail(receiverEmail)

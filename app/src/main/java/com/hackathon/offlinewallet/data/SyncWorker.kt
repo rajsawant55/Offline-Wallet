@@ -1,8 +1,12 @@
 package com.hackathon.offlinewallet.data
 
 import android.content.Context
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
 import androidx.hilt.work.HiltWorker
+import androidx.work.Constraints
 import androidx.work.CoroutineWorker
+import androidx.work.NetworkType
 import androidx.work.WorkerParameters
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
@@ -33,44 +37,31 @@ class SyncWorker @AssistedInject constructor(
         android.util.Log.d("SyncWorker", "SyncWorker instantiated with Firebase")
     }
 
+    // Add network constraint for WorkManager
+     val constraints: Constraints
+        get() = Constraints.Builder()
+            .setRequiredNetworkType(NetworkType.CONNECTED)
+            .build()
+
+    // Check if device is online
+    private fun isOnline(): Boolean {
+        val connectivityManager = applicationContext.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+        val network = connectivityManager.activeNetwork ?: return false
+        val capabilities = connectivityManager.getNetworkCapabilities(network) ?: return false
+        return capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+    }
+
     override suspend fun doWork(): Result = withContext(Dispatchers.IO) {
         try {
+            // Check if device is online before proceeding
+            if (!isOnline()) {
+                android.util.Log.w("SyncWorker", "Device is offline, retrying later")
+                return@withContext Result.retry()
+            }
+
             android.util.Log.d("SyncWorker", "Starting sync process")
             val currentUserId = firebaseAuth.currentUser?.uid ?: ""
 
-//            // Sync offline users
-//            val offlineUsers = userDao.getPendingUsers()
-//            for (user in offlineUsers) {
-//                if (user.passwordHash == null) {
-//                    android.util.Log.w("SyncWorker", "Skipping user sync for ${user.email}: no password")
-//                    continue
-//                }
-//                val authResult = firebaseAuth.createUserWithEmailAndPassword(user.email, user.passwordHash).await()
-//                val newUserId = authResult.user?.uid ?: continue
-//                firestore.collection("users").document(newUserId).set(
-//                    mapOf(
-//                        "user_id" to newUserId,
-//                        "email" to user.email,
-//                        "user_name" to user.username,
-//                        "created_at" to user.createdAt
-//                    )
-//                ).await()
-//                val wallet = walletDao.getWallet(user.id)
-//                if (wallet != null) {
-//                    firestore.collection("wallets").document(newUserId).set(
-//                        mapOf(
-//                            "user_id" to newUserId,
-//                            "email" to user.email,
-//                            "balance" to wallet.balance,
-//                            "created_at" to wallet.createdAt,
-//                            "updated_at" to wallet.updatedAt
-//                        )
-//                    ).await()
-//                    walletDao.markWalletSynced(user.id, newUserId, newUserId)
-//                }
-//                userDao.markUserSynced(user.id, newUserId)
-//                android.util.Log.d("SyncWorker", "Synced user ${user.email} with Firebase ID: $newUserId")
-//            }
 
             // Sync pending wallet updates
             val pendingUpdates = pendingWalletUpdateDao.getAllPendingUpdates()

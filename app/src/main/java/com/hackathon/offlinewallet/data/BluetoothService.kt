@@ -76,7 +76,7 @@ class BluetoothService(
                         val transactionJson = String(buffer, 0, bytesRead)
                         val transaction = Json.decodeFromString(WalletTransactions.serializer(), transactionJson)
                         val receiverTransaction = transaction.copy(
-                            id = UUID.randomUUID().toString(),
+//                            id = UUID.randomUUID().toString(),
                             userId = "offline_${transaction.receiverEmail.hashCode()}",
                             type = "receive"
                         )

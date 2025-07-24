@@ -22,6 +22,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.scale
@@ -42,6 +43,7 @@ import java.io.InputStream
 import java.io.OutputStream
 import java.time.OffsetDateTime
 import java.util.UUID
+import androidx.compose.runtime.collectAsState as collectAsState1
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -57,7 +59,7 @@ fun SendMoneyScreen(navController: NavController, authViewModel: AuthViewModel, 
     val scale by animateFloatAsState(if (isPressed) 0.95f else 1f)
     val coroutineScope = rememberCoroutineScope()
     val context = LocalContext.current
-    val isOnline by walletViewModel.isOnline.collectAsState()
+    val isOnline by walletViewModel.isOnline.collectAsState1()
     var isBluetoothEnabled by remember { mutableStateOf(BluetoothAdapter.getDefaultAdapter()?.isEnabled == true) }
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
@@ -213,6 +215,18 @@ fun SendMoneyScreen(navController: NavController, authViewModel: AuthViewModel, 
                                         snackbarHostState.showSnackbar("Please select a Bluetooth device")
                                     }
                                     return@Button
+                                }
+                                coroutineScope.launch(Dispatchers.IO) {
+                                    val wallet = walletViewModel.getWallet(senderEmail)
+                                    val senderBalance: Double? = wallet.value?.balance
+                                    withContext(Dispatchers.Main) {
+                                        if (senderBalance != null) {
+                                            if (senderBalance < amountDouble) {
+                                                snackbarHostState.showSnackbar("Insufficient balance")
+                                                navController.popBackStack()
+                                            }
+                                        }
+                                    }
                                 }
                                 coroutineScope.launch(Dispatchers.IO) {
                                     val transaction = WalletTransactions(

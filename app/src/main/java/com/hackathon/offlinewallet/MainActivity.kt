@@ -20,19 +20,30 @@ import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
 import android.Manifest
 import android.annotation.SuppressLint
+import android.content.Context
 import android.content.pm.PackageManager
+import android.net.ConnectivityManager
+import android.net.Network
+import android.net.NetworkCapabilities
+import android.net.NetworkRequest
 import android.util.Log
 import android.widget.Toast
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.runtime.LaunchedEffect
+import androidx.work.Constraints
+import androidx.work.ExistingWorkPolicy
+import androidx.work.NetworkType
+import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.WorkManager
+import com.hackathon.offlinewallet.data.SyncWorker
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
@@ -65,9 +76,17 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         checkAndRequestBluetoothPermissions()
+        setupConnectivityListener()
         setContent {
             WalletApp()
         }
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        // Unregister network callback to prevent leaks
+        val connectivityManager = getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+        connectivityManager.unregisterNetworkCallback(networkCallback)
     }
 
     private fun checkAndRequestBluetoothPermissions() {
@@ -84,7 +103,7 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    @RequiresPermission(allOf = [Manifest.permission.BLUETOOTH,Manifest.permission.BLUETOOTH_CONNECT, Manifest.permission.BLUETOOTH_SCAN])
+    @RequiresPermission(allOf = [Manifest.permission.BLUETOOTH_CONNECT, Manifest.permission.BLUETOOTH_SCAN])
     private fun checkAndEnableBluetooth() {
         try {
             val bluetoothAdapter = BluetoothAdapter.getDefaultAdapter()
@@ -105,7 +124,7 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    @RequiresPermission(allOf = [Manifest.permission.BLUETOOTH_ADVERTISE, Manifest.permission.BLUETOOTH_SCAN, Manifest.permission.BLUETOOTH_ADVERTISE])
+    @RequiresPermission(allOf = [Manifest.permission.BLUETOOTH_CONNECT, Manifest.permission.BLUETOOTH_SCAN, Manifest.permission.BLUETOOTH_ADVERTISE])
     private fun tryStartBluetoothService() {
         val requiredPermissions = arrayOf(
             Manifest.permission.BLUETOOTH_CONNECT,
@@ -143,6 +162,34 @@ class MainActivity : ComponentActivity() {
         } catch (e: SecurityException) {
             Log.e("MainActivity", "SecurityException in ensureDiscoverable: ${e.message}", e)
             Toast.makeText(this, "Bluetooth discoverability permission error", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    private fun setupConnectivityListener() {
+        val connectivityManager = getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+        val networkRequest = NetworkRequest.Builder()
+            .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+            .build()
+        connectivityManager.registerNetworkCallback(networkRequest, networkCallback)
+    }
+
+    private val networkCallback = object : ConnectivityManager.NetworkCallback() {
+        override fun onAvailable(network: Network) {
+            super.onAvailable(network)
+            Log.d("MainActivity", "Network available, scheduling SyncWorker")
+            val constraints = Constraints.Builder()
+                .setRequiredNetworkType(NetworkType.CONNECTED)
+                .build()
+            val workRequest = OneTimeWorkRequestBuilder<SyncWorker>()
+                .setConstraints(constraints)
+                .build()
+            WorkManager.getInstance(applicationContext)
+                .enqueueUniqueWork(SyncWorker.WORK_NAME, ExistingWorkPolicy.KEEP, workRequest)
+        }
+
+        override fun onLost(network: Network) {
+            super.onLost(network)
+            Log.d("MainActivity", "Network lost")
         }
     }
 }
