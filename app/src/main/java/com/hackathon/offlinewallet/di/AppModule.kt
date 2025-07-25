@@ -11,6 +11,7 @@ import com.hackathon.offlinewallet.data.PendingWalletUpdateDao
 import com.hackathon.offlinewallet.data.WalletTransactionDao
 import com.hackathon.offlinewallet.data.WalletDao
 import com.hackathon.offlinewallet.data.WalletRepository
+import com.hackathon.offlinewallet.ui.AuthViewModel
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -94,8 +95,9 @@ object AppModule {
     @Singleton
     fun provideBluetoothService(
         @ApplicationContext context: Context,
-        walletRepository: WalletRepository
+        walletRepository: WalletRepository,
+        authRepository: AuthRepository
     ): BluetoothService {
-        return BluetoothService(context, walletRepository)
+        return BluetoothService(context, walletRepository, authRepository)
     }
 }

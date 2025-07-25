@@ -161,6 +161,16 @@ class AuthRepository @Inject constructor(
 
     fun getCurrentUserId(): String? = firebaseAuth.currentUser?.uid
 
+    suspend fun getUserIdByEmail(email: String): String? {
+        val userResult = getUser(email)
+        return if (userResult.isSuccess) {
+            userResult.getOrNull()?.id
+        } else {
+            null
+        }
+    }
+
+
     suspend fun getUser(email: String): Result<User?> = withContext(Dispatchers.IO) {
         try {
             println("User email during get User $email")

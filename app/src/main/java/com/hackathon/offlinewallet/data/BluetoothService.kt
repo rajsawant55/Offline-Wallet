@@ -10,6 +10,7 @@ import android.content.pm.PackageManager
 import android.util.Log
 import androidx.annotation.RequiresPermission
 import androidx.core.app.ActivityCompat
+import com.hackathon.offlinewallet.ui.AuthViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
@@ -20,7 +21,8 @@ import java.util.UUID
 
 class BluetoothService(
     private val context: Context,
-    private val walletRepository: WalletRepository
+    private val walletRepository: WalletRepository,
+    private val authRepository: AuthRepository
 ) {
     @RequiresPermission(Manifest.permission.BLUETOOTH_ADVERTISE)
     fun ensureDiscoverable(context: Context) {
@@ -30,13 +32,6 @@ class BluetoothService(
                 Manifest.permission.BLUETOOTH_SCAN
             ) != PackageManager.PERMISSION_GRANTED
         ) {
-            // TODO: Consider calling
-            //    ActivityCompat#requestPermissions
-            // here to request the missing permissions, and then overriding
-            //   public void onRequestPermissionsResult(int requestCode, String[] permissions,
-            //                                          int[] grantResults)
-            // to handle the case where the user grants the permission. See the documentation
-            // for ActivityCompat#requestPermissions for more details.
             return
         }
         if (bluetoothAdapter?.scanMode != BluetoothAdapter.SCAN_MODE_CONNECTABLE_DISCOVERABLE) {
@@ -59,6 +54,7 @@ class BluetoothService(
         Thread {
             while (true) {
                 try {
+
                     val socket: BluetoothSocket = serverSocket.accept()
                     val inputStream: InputStream = socket.inputStream
                     val outputStream: OutputStream = socket.outputStream
@@ -75,24 +71,31 @@ class BluetoothService(
                         bytesRead = inputStream.read(buffer)
                         val transactionJson = String(buffer, 0, bytesRead)
                         val transaction = Json.decodeFromString(WalletTransactions.serializer(), transactionJson)
-                        val receiverTransaction = transaction.copy(
-//                            id = UUID.randomUUID().toString(),
-                            userId = "offline_${transaction.receiverEmail.hashCode()}",
-                            type = "receive"
-                        )
 
                         runBlocking {
+                            val userId = authRepository.getUserIdByEmail(transaction.receiverEmail)
+
+
+                            val receiverTransaction = transaction.copy(
+                                userId = userId.toString(),
+                                type = "receive"
+                            )
+
                             withContext(Dispatchers.IO) {
                                 walletRepository.storeOfflineTransaction(receiverTransaction)
                             }
                         }
+
+                        // Send ACK for transaction
+                        outputStream.write("ACK_TRANSACTION".toByteArray())
+                        outputStream.flush()
                     }
 
                     inputStream.close()
                     outputStream.close()
                     socket.close()
                 } catch (e: Exception) {
-                    Log.e("BluetoothService", "Error receiving transaction", e)
+                    Log.e("BluetoothService", "Error in Bluetooth communication", e)
                 }
             }
         }.start()

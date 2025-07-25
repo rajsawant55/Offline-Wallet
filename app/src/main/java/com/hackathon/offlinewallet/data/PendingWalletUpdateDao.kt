@@ -1,5 +1,7 @@
 package com.hackathon.offlinewallet.data
 
+import androidx.room.Query
+
 @androidx.room.Dao
 interface PendingWalletUpdateDao {
     @androidx.room.Insert
@@ -10,4 +12,7 @@ interface PendingWalletUpdateDao {
 
     @androidx.room.Query("DELETE FROM PendingWalletUpdate WHERE updateId = :updateId")
     suspend fun deletePendingUpdate(updateId: Long)
+
+    @Query("DELETE FROM PendingWalletUpdate WHERE timestamp = :timestamp")
+    suspend fun deletePendingUpdatesByTimestamp(timestamp: String)
 }

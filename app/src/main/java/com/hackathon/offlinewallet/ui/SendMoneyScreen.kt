@@ -315,10 +315,13 @@ fun SendMoneyScreen(
                                         }
                                     }
                                 }
+
+                                val senderUserId = authViewModel.getCurrentUserId() ?: "offline_${senderEmail.hashCode()}"
+
                                 coroutineScope.launch(Dispatchers.IO) {
                                     val transaction = WalletTransactions(
                                         id = UUID.randomUUID().toString(),
-                                        userId = "offline_${senderEmail.hashCode()}",
+                                        userId = senderUserId,
                                         senderEmail = senderEmail,
                                         receiverEmail = receiverEmail,
                                         amount = amountDouble,

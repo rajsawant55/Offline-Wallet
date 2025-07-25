@@ -61,12 +61,15 @@ class SyncWorker @AssistedInject constructor(
 
             android.util.Log.d("SyncWorker", "Starting sync process")
             val currentUserId = firebaseAuth.currentUser?.uid ?: ""
-
+//            val currentUserEmai
 
             // Sync pending wallet updates
             val pendingUpdates = pendingWalletUpdateDao.getAllPendingUpdates()
+            var transactionType = ""
             for (update in pendingUpdates) {
+                transactionType = update.transactionType
                 when (update.transactionType) {
+
                     "add" -> {
                         val snapshot = firestore.collection("wallets")
                             .whereEqualTo("email", update.email)
@@ -118,6 +121,8 @@ class SyncWorker @AssistedInject constructor(
                         if (snapshot.documents.isNotEmpty()) {
                             val doc = snapshot.documents.first()
                             val currentBalance = doc.getDouble("balance") ?: 0.0
+
+                            println("Current Balance first $currentBalance")
                             firestore.collection("wallets")
                                 .document(doc.id)
                                 .update("balance", currentBalance + update.amount)
@@ -147,7 +152,10 @@ class SyncWorker @AssistedInject constructor(
                 pendingWalletUpdateDao.deletePendingUpdate(update.updateId)
             }
 
-            // Sync pending transactions
+//            // Sync pending transactions
+//            if(transactionType == "receive" ){
+//                currentUserId = wal
+//            }
             val pendingTransactions = walletTransactionDao.getPendingTransactionsByUserId(currentUserId)
             for (transaction in pendingTransactions) {
                 val relatedEmail = if (transaction.type == "send") transaction.receiverEmail else transaction.senderEmail
@@ -168,10 +176,10 @@ class SyncWorker @AssistedInject constructor(
                 if (snapshot.documents.isNotEmpty()) {
                     val doc = snapshot.documents.first()
                     val currentBalance = doc.getDouble("balance") ?: 0.0
-                    firestore.collection("wallets")
-                        .document(doc.id)
-                        .update("balance", currentBalance + amount)
-                        .await()
+//                    firestore.collection("wallets")
+//                        .document(doc.id)
+//                        .update("balance", currentBalance + amount)
+//                        .await()
                 } else {
                     val userSnapshot = firestore.collection("users")
                         .whereEqualTo("email", email)
