@@ -1,25 +1,20 @@
-To convert the "GDP Channels Dashboard" from React to Angular, I'll rewrite the project using Angular 16 (or later, based on the latest stable version as of August 2025). The dashboard will maintain the same functionality: a landing page ("GDP Channels") listing active channels with a toggle to view inactive ones, a channel details page with attributes, and a graphical representation of filter rules using a bar chart. The data will be fetched from a REST API, as specified in your latest request.
-The tech stack will include:
-Angular: For building the UI and handling routing.
-Angular Material: For styling and components (equivalent to Material-UI in React).
-NGX-Charts: For rendering the bar chart (equivalent to Recharts).
-TypeScript: For type-safe coding.
-Angular HttpClient: For making REST API calls to fetch channel data.
-Key Changes from React
-Framework: Angular uses a component-based architecture with TypeScript, modules, and dependency injection, unlike React's JavaScript-based functional components.
-Routing: Angular's @angular/router replaces react-router-dom.
-Styling: Angular Material replaces Material-UI for UI components.
-Charting: NGX-Charts replaces Recharts for the filter rules bar chart.
-API Integration: Uses Angular's HttpClient instead of fetch.
-Directory Structure: Follows Angular's conventions (e.g., components, services, modules).
+To convert the "GDP Channels Dashboard" to use Angular's standalone component approach (introduced in Angular 14 and enhanced in later versions), I'll rewrite the project using Angular 16 or later (as of August 2025). The standalone component approach eliminates the need for NgModules (e.g., AppModule), making the application more lightweight and modular. The dashboard will retain all functionality:
+Landing Page ("GDP Channels"): Lists active channels with a toggle to view inactive ones.
+Channel Details Page: Displays channel attributes and a bar chart of filter rules.
+REST API Integration: Fetches data from GET /api/channels and GET /api/channels/:id.
+Tech Stack: Angular, Angular Material (for UI components), NGX-Charts (for bar charts), and HttpClient (for API calls).
+Key Changes from Previous Angular Version
+Standalone Components: Components are marked as standalone: true, and dependencies are imported directly in each component, removing the need for app.module.ts.
+Routing: Uses provideRouter in main.ts instead of AppRoutingModule.
+Service: The ChannelService remains unchanged but is provided via provideHttpClient in main.ts.
+Pipe: A custom pipe (filterChannels) is used for filtering active/inactive channels, implemented as a standalone pipe.
+Dependencies: Same as before (Angular Material, NGX-Charts), but no NgModule imports.
 Assumptions
 API Endpoints:
 GET /api/channels: Returns a list of channels.
 GET /api/channels/:id: Returns details for a specific channel.
-Data structure matches the previous mock data (see below).
 API Base URL: Replace http://your-api-base-url with your actual API URL.
-CORS: The API must support CORS if hosted on a different domain.
-Data Structure:
+Data Structure: Matches the previous structure:
 [
   {
     "id": "CH001",
@@ -37,6 +32,7 @@ Data Structure:
     ]
   }
 ]
+CORS: The API must support CORS if hosted on a different domain.
 Project Structure
 gdp-channels-dashboard/
 ├── src/
@@ -54,13 +50,13 @@ gdp-channels-dashboard/
 │   │   │   │   ├── filter-rules-chart.component.ts
 │   │   │   │   ├── filter-rules-chart.component.html
 │   │   │   │   ├── filter-rules-chart.component.css
+│   │   ├── pipes/
+│   │   │   ├── filter-channels.pipe.ts
 │   │   ├── services/
 │   │   │   ├── channel.service.ts
 │   │   ├── app.component.ts
 │   │   ├── app.component.html
 │   │   ├── app.component.css
-│   │   ├── app.module.ts
-│   │   ├── app-routing.module.ts
 │   ├── assets/
 │   ├── index.html
 │   ├── main.ts
@@ -74,17 +70,16 @@ Prerequisites:
 Node.js (v14 or later) and npm.
 Angular CLI: Install globally with npm install -g @angular/cli.
 Create the Project:
-Create a new Angular project:
-ng new gdp-channels-dashboard --style=css --routing=true
+ng new gdp-channels-dashboard --style=css --standalone
 cd gdp-channels-dashboard
+The --standalone flag sets up a project without NgModules.
 Install dependencies:
 npm install @angular/material @angular/cdk @swimlane/ngx-charts
 Configure Angular Material:
-Add Angular Material with a theme:
 ng add @angular/material
 Choose a theme (e.g., Indigo/Pink) and enable typography and animations as needed.
 File Setup:
-Replace or create the files listed below in the project directory.
+Replace or create the files listed below.
 Update the API base URL in src/app/services/channel.service.ts.
 Run the Application:
 ng serve
@@ -93,15 +88,15 @@ Build for Production:
 ng build
 Deploy the dist folder to your hosting service.
 API Integration:
-Ensure your API is running and accessible.
-Update the baseUrl in channel.service.ts to your API's base URL.
+Update baseUrl in channel.service.ts with your API URL.
+Ensure the API is running and accessible.
 Create ZIP File:
 After setting up the files, compress the gdp-channels-dashboard folder:
 Windows: Right-click > "Send to" > "Compressed (zipped) folder".
-macOS/Linux: Run zip -r gdp-channels-dashboard.zip gdp-channels-dashboard.
+macOS/Linux: Run:
+zip -r gdp-channels-dashboard.zip gdp-channels-dashboard
 Files
 1. src/index.html
-Default Angular template, updated with the app title.
 <!doctype html>
 <html lang="en">
 <head>
@@ -118,102 +113,51 @@ Default Angular template, updated with the app title.
 </body>
 </html>
 2. src/styles.css
-Global styles (optional customization).
-/* Add global styles here */
 body {
   margin: 0;
   font-family: Roboto, "Helvetica Neue", sans-serif;
 }
 3. src/main.ts
-Default Angular bootstrap file (no changes needed).
-import { platformBrowserDynamic } from '@angular/platform-browser-dynamic';
-import { AppModule } from './app/app.module';
+Configures standalone components and routing.
+import { bootstrapApplication } from '@angular/platform-browser';
+import { provideRouter } from '@angular/router';
+import { provideHttpClient } from '@angular/common/http';
+import { provideAnimations } from '@angular/platform-browser/animations';
+import { AppComponent } from './app/app.component';
+import { ChannelListComponent } from './app/components/channel-list/channel-list.component';
+import { ChannelDetailsComponent } from './app/components/channel-details/channel-details.component';
 
-platformBrowserDynamic().bootstrapModule(AppModule)
-  .catch(err => console.error(err));
-4. src/app/app.module.ts
-Main module with imports for Angular Material, NGX-Charts, and routing.
-import { NgModule } from '@angular/core';
-import { BrowserModule } from '@angular/platform-browser';
-import { HttpClientModule } from '@angular/common/http';
-import { BrowserAnimationsModule } from '@angular/platform-browser/animations';
-import { MatTableModule } from '@angular/material/table';
-import { MatCardModule } from '@angular/material/card';
-import { MatToolbarModule } from '@angular/material/toolbar';
-import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
-import { MatSlideToggleModule } from '@angular/material/slide-toggle';
-import { MatGridListModule } from '@angular/material/grid-list';
-import { MatListModule } from '@angular/material/list';
-import { NgxChartsModule } from '@swimlane/ngx-charts';
-import { AppRoutingModule } from './app-routing.module';
-import { AppComponent } from './app.component';
-import { ChannelListComponent } from './components/channel-list/channel-list.component';
-import { ChannelDetailsComponent } from './components/channel-details/channel-details.component';
-import { FilterRulesChartComponent } from './components/filter-rules-chart/filter-rules-chart.component';
-
-@NgModule({
-  declarations: [
-    AppComponent,
-    ChannelListComponent,
-    ChannelDetailsComponent,
-    FilterRulesChartComponent
-  ],
-  imports: [
-    BrowserModule,
-    HttpClientModule,
-    BrowserAnimationsModule,
-    MatTableModule,
-    MatCardModule,
-    MatToolbarModule,
-    MatProgressSpinnerModule,
-    MatSlideToggleModule,
-    MatGridListModule,
-    MatListModule,
-    NgxChartsModule,
-    AppRoutingModule
-  ],
-  providers: [],
-  bootstrap: [AppComponent]
-})
-export class AppModule { }
-5. src/app/app-routing.module.ts
-Routing configuration for the dashboard and channel details pages.
-import { NgModule } from '@angular/core';
-import { RouterModule, Routes } from '@angular/router';
-import { ChannelListComponent } from './components/channel-list/channel-list.component';
-import { ChannelDetailsComponent } from './components/channel-details/channel-details.component';
-
-const routes: Routes = [
-  { path: '', component: ChannelListComponent },
-  { path: 'channel/:id', component: ChannelDetailsComponent },
-  { path: '**', redirectTo: '' }
-];
-
-@NgModule({
-  imports: [RouterModule.forRoot(routes)],
-  exports: [RouterModule]
-})
-export class AppRoutingModule { }
-6. src/app/app.component.ts
-Root component (minimal logic, delegates to routed components).
+bootstrapApplication(AppComponent, {
+  providers: [
+    provideHttpClient(),
+    provideAnimations(),
+    provideRouter([
+      { path: '', component: ChannelListComponent },
+      { path: 'channel/:id', component: ChannelDetailsComponent },
+      { path: '**', redirectTo: '' }
+    ])
+  ]
+}).catch(err => console.error(err));
+4. src/app/app.component.ts
 import { Component } from '@angular/core';
+import { RouterOutlet } from '@angular/router';
 
 @Component({
   selector: 'app-root',
+  standalone: true,
+  imports: [RouterOutlet],
   templateUrl: './app.component.html',
   styleUrls: ['./app.component.css']
 })
 export class AppComponent {
   title = 'GDP Channels Dashboard';
 }
-7. src/app/app.component.html
-Root template with router outlet.
+5. src/app/app.component.html
 <router-outlet></router-outlet>
-8. src/app/app.component.css
-Empty or add global styles if needed.
+6. src/app/app.component.css
 /* Add styles if needed */
-9. src/app/services/channel.service.ts
-Service to handle API calls for fetching channels.
+7. src/app/services/channel.service.ts
+Handles API calls.
 import { Injectable } from '@angular/core';
 import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { Observable, throwError } from 'rxjs';
@@ -258,14 +202,48 @@ export class ChannelService {
     return throwError(() => new Error(errorMessage));
   }
 }
-10. src/app/components/channel-list/channel-list.component.ts
-Component to display the channel list with a toggle for inactive channels.
+8. src/app/pipes/filter-channels.pipe.ts
+Standalone pipe to filter active/inactive channels.
+import { Pipe, PipeTransform } from '@angular/core';
+import { Channel } from '../services/channel.service';
+
+@Pipe({
+  name: 'filterChannels',
+  standalone: true
+})
+export class FilterChannelsPipe implements PipeTransform {
+  transform(channels: Channel[], showInactive: boolean): Channel[] {
+    if (!channels) return [];
+    return showInactive ? channels : channels.filter(channel => channel.status === 'Active');
+  }
+}
+9. src/app/components/channel-list/channel-list.component.ts
 import { Component, OnInit } from '@angular/core';
-import { ChannelService, Channel } from '../../services/channel.service';
+import { CommonModule } from '@angular/common';
+import { RouterLink } from '@angular/router';
+import { MatTableModule } from '@angular/material/table';
+import { MatToolbarModule } from '@angular/material/toolbar';
+import { MatSlideToggleModule } from '@angular/material/slide-toggle';
+import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { MatCardModule } from '@angular/material/card';
+import { catchError, tap } from 'rxjs/operators';
 import { Observable, of } from 'rxjs';
+import { Channel, ChannelService } from '../../services/channel.service';
+import { FilterChannelsPipe } from '../../pipes/filter-channels.pipe';
 
 @Component({
   selector: 'app-channel-list',
+  standalone: true,
+  imports: [
+    CommonModule,
+    RouterLink,
+    MatTableModule,
+    MatToolbarModule,
+    MatSlideToggleModule,
+    MatProgressSpinnerModule,
+    MatCardModule,
+    FilterChannelsPipe
+  ],
   templateUrl: './channel-list.component.html',
   styleUrls: ['./channel-list.component.css']
 })
@@ -299,8 +277,7 @@ export class ChannelListComponent implements OnInit {
     this.showInactive = !this.showInactive;
   }
 }
-11. src/app/components/channel-list/channel-list.component.html
-Template for the channel list.
+10. src/app/components/channel-list/channel-list.component.html
 <div class="container">
   <mat-toolbar>
     <span>GDP Channels</span>
@@ -341,8 +318,7 @@ Template for the channel list.
     </table>
   </div>
 </div>
-12. src/app/components/channel-list/channel-list.component.css
-Styles for the channel list.
+11. src/app/components/channel-list/channel-list.component.css
 .container {
   padding: 24px;
 }
@@ -364,77 +340,134 @@ a {
 a:hover {
   text-decoration: underline;
 }
-13. src/app/components/channel-details/channel-details.component.ts
-Component to display channel details and filter rules chart.
-import { Component, Input } from '@angular/core';
-import { Channel } from '../../services/channel.service';
+12. src/app/components/channel-details/channel-details.component.ts
+import { Component, OnInit } from '@angular/core';
+import { CommonModule } from '@angular/common';
+import { ActivatedRoute } from '@angular/router';
+import { MatToolbarModule } from '@angular/material/toolbar';
+import { MatCardModule } from '@angular/material/card';
+import { MatGridListModule } from '@angular/material/grid-list';
+import { MatListModule } from '@angular/material/list';
+import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { catchError, tap } from 'rxjs/operators';
+import { Observable, of } from 'rxjs';
+import { Channel, ChannelService } from '../../services/channel.service';
+import { FilterRulesChartComponent } from '../filter-rules-chart/filter-rules-chart.component';
 
 @Component({
   selector: 'app-channel-details',
+  standalone: true,
+  imports: [
+    CommonModule,
+    MatToolbarModule,
+    MatCardModule,
+    MatGridListModule,
+    MatListModule,
+    MatProgressSpinnerModule,
+    FilterRulesChartComponent
+  ],
   templateUrl: './channel-details.component.html',
   styleUrls: ['./channel-details.component.css']
 })
-export class ChannelDetailsComponent {
-  @Input() channel: Channel | null = null;
+export class ChannelDetailsComponent implements OnInit {
+  channel$!: Observable<Channel | null>;
+  loading: boolean = true;
+  error: string | null = null;
+
+  constructor(
+    private route: ActivatedRoute,
+    private channelService: ChannelService
+  ) {}
+
+  ngOnInit(): void {
+    const id = this.route.snapshot.paramMap.get('id');
+    if (id) {
+      this.fetchChannel(id);
+    }
+  }
+
+  fetchChannel(id: string): void {
+    this.loading = true;
+    this.channel$ = this.channelService.getChannelById(id).pipe(
+      catchError(error => {
+        this.error = error.message;
+        this.loading = false;
+        return of(null);
+      }),
+      tap(() => this.loading = false)
+    );
+  }
 }
-14. src/app/components/channel-details/channel-details.component.html
-Template for channel details.
-<div class="container" *ngIf="channel; else noData">
-  <mat-toolbar>
+13. src/app/components/channel-details/channel-details.component.html
+<div class="container">
+  <mat-toolbar *ngIf="channel$ | async as channel">
     <span>Channel Details: {{ channel.name }}</span>
   </mat-toolbar>
-  <mat-grid-list cols="2" rowHeight="400px" gutterSize="16px">
-    <mat-grid-tile>
-      <mat-card>
-        <mat-card-header>
-          <mat-card-title>Channel Information</mat-card-title>
-        </mat-card-header>
-        <mat-card-content>
-          <mat-list>
-            <mat-list-item><strong>ID:</strong> {{ channel.id }}</mat-list-item>
-            <mat-list-item><strong>Name:</strong> {{ channel.name }}</mat-list-item>
-            <mat-list-item><strong>Status:</strong> {{ channel.status }}</mat-list-item>
-            <mat-list-item><strong>Contact:</strong> {{ channel.attributes.contact }}</mat-list-item>
-            <mat-list-item><strong>Location:</strong> {{ channel.attributes.location }}</mat-list-item>
-            <mat-list-item><strong>Created:</strong> {{ channel.attributes.created }}</mat-list-item>
-          </mat-list>
-        </mat-card-content>
-      </mat-card>
-    </mat-grid-tile>
-    <mat-grid-tile>
-      <mat-card>
-        <mat-card-header>
-          <mat-card-title>Filter Rules</mat-card-title>
-        </mat-card-header>
-        <mat-card-content>
-          <app-filter-rules-chart [filterRules]="channel.filterRules"></app-filter-rules-chart>
-        </mat-card-content>
-      </mat-card>
-    </mat-grid-tile>
-  </mat-grid-list>
+  <div *ngIf="loading" class="loading">
+    <mat-spinner></mat-spinner>
+  </div>
+  <div *ngIf="error" class="error">
+    <mat-card>
+      <mat-card-content>{{ error }}</mat-card-content>
+    </mat-card>
+  </div>
+  <div *ngIf="!loading && !error && (channel$ | async) as channel">
+    <mat-grid-list cols="2" rowHeight="400px" gutterSize="16px">
+      <mat-grid-tile>
+        <mat-card>
+          <mat-card-header>
+            <mat-card-title>Channel Information</mat-card-title>
+          </mat-card-header>
+          <mat-card-content>
+            <mat-list>
+              <mat-list-item><strong>ID:</strong> {{ channel.id }}</mat-list-item>
+              <mat-list-item><strong>Name:</strong> {{ channel.name }}</mat-list-item>
+              <mat-list-item><strong>Status:</strong> {{ channel.status }}</mat-list-item>
+              <mat-list-item><strong>Contact:</strong> {{ channel.attributes.contact }}</mat-list-item>
+              <mat-list-item><strong>Location:</strong> {{ channel.attributes.location }}</mat-list-item>
+              <mat-list-item><strong>Created:</strong> {{ channel.attributes.created }}</mat-list-item>
+            </mat-list>
+          </mat-card-content>
+        </mat-card>
+      </mat-grid-tile>
+      <mat-grid-tile>
+        <mat-card>
+          <mat-card-header>
+            <mat-card-title>Filter Rules</mat-card-title>
+          </mat-card-header>
+          <mat-card-content>
+            <app-filter-rules-chart [filterRules]="channel.filterRules"></app-filter-rules-chart>
+          </mat-card-content>
+        </mat-card>
+      </mat-grid-tile>
+    </mat-grid-list>
+  </div>
+  <div *ngIf="!loading && !error && !(channel$ | async)" class="no-data">
+    No channel data available.
+  </div>
 </div>
-<ng-template #noData>
-  <div class="no-data">No channel data available.</div>
-</ng-template>
-15. src/app/components/channel-details/channel-details.component.css
-Styles for channel details.
+14. src/app/components/channel-details/channel-details.component.css
 .container {
   padding: 24px;
 }
-.no-data {
-  text-align: center;
-  padding: 24px;
+.loading, .error, .no-data {
+  display: flex;
+  justify-content: center;
+  margin-top: 24px;
 }
-16. src/app/components/filter-rules-chart/filter-rules-chart.component.ts
-Component for rendering the filter rules bar chart.
-import { Component, Input } from '@angular/core';
+15. src/app/components/filter-rules-chart/filter-rules-chart.component.ts
+import { Component, Input, OnChanges } from '@angular/core';
+import { CommonModule } from '@angular/common';
+import { NgxChartsModule } from '@swimlane/ngx-charts';
 
 @Component({
   selector: 'app-filter-rules-chart',
+  standalone: true,
+  imports: [CommonModule, NgxChartsModule],
   templateUrl: './filter-rules-chart.component.html',
   styleUrls: ['./filter-rules-chart.component.css']
 })
-export class FilterRulesChartComponent {
+export class FilterRulesChartComponent implements OnChanges {
   @Input() filterRules: { rule: string; value: string; count: number }[] = [];
 
   chartData: any[] = [];
@@ -454,8 +487,7 @@ export class FilterRulesChartComponent {
     }));
   }
 }
-17. src/app/components/filter-rules-chart/filter-rules-chart.component.html
-Template for the filter rules chart.
+16. src/app/components/filter-rules-chart/filter-rules-chart.component.html
 <ngx-charts-bar-vertical
   [view]="view"
   [results]="chartData"
@@ -466,17 +498,15 @@ Template for the filter rules chart.
   [yAxisLabel]="yAxisLabel"
 >
 </ngx-charts-bar-vertical>
-18. src/app/components/filter-rules-chart/filter-rules-chart.component.css
-Styles for the chart.
+17. src/app/components/filter-rules-chart/filter-rules-chart.component.css
 :host {
   display: block;
   width: 100%;
   height: 300px;
 }
-19. angular.json
-Default Angular configuration (generated by ng new). Ensure @swimlane/ngx-charts is included in dependencies. No specific changes needed unless you customize build options.
-20. package.json
-Updated with Angular dependencies.
+18. angular.json
+Default configuration from ng new. No changes needed unless customizing build options.
+19. package.json
 {
   "name": "gdp-channels-dashboard",
   "version": "0.0.0",
@@ -518,13 +548,12 @@ Updated with Angular dependencies.
     "typescript": "~4.9.5"
   }
 }
-21. tsconfig.json
-Default TypeScript configuration (generated by ng new). No changes needed.
-22. README.md
-Updated for Angular.
-# GDP Channels Dashboard (Angular)
+20. tsconfig.json
+Default configuration from ng new. No changes needed.
+21. README.md
+# GDP Channels Dashboard (Angular Standalone)
 
-An Angular-based dashboard for managing channels in an application. Displays a list of active channels with an option to view inactive ones and detailed views for each channel, including filter rules visualized as a bar chart. Data is fetched from a REST API.
+An Angular-based dashboard using standalone components for managing channels in an application. Displays a list of active channels with an option to view inactive ones and detailed views for each channel, including filter rules visualized as a bar chart. Data is fetched from a REST API.
 
 ## Setup Instructions
 
@@ -561,13 +590,7 @@ Notes
 The filter rules chart assumes a structure with rule, value, and count. Adjust as needed.
 Ensure your API is accessible and returns data in the expected format.
 For CORS issues, configure your backend to include appropriate headers (e.g., Access-Control-Allow-Origin).
-To use a proxy for development, add to angular.json:
-"serve": {
-  "options": {
-    "proxyConfig": "proxy.conf.json"
-  }
-}
-Create proxy.conf.json:
+To use a proxy for development, create proxy.conf.json:
 {
   "/api": {
     "target": "http://your-api-base-url",
@@ -575,10 +598,21 @@ Create proxy.conf.json:
     "changeOrigin": true
   }
 }
+Update angular.json:
+"serve": {
+  "options": {
+    "proxyConfig": "proxy.conf.json"
+  }
+}
 ### **Notes**
+- **Standalone Components**:
+  - Each component is marked `standalone: true` and imports its dependencies directly.
+  - Routing is configured in `main.ts` using `provideRouter`.
+  - The `FilterChannelsPipe` is standalone and used in `ChannelListComponent`.
+
 - **API Integration**:
-  - Update `baseUrl` in `channel.service.ts` to your actual API URL.
-  - If authentication is required, add headers to HTTP requests:
+  - Update `baseUrl` in `channel.service.ts`.
+  - For authentication, add headers:
     ```typescript
     this.http.get<Channel[]>(`${this.baseUrl}/channels`, {
       headers: { Authorization: `Bearer ${yourToken}` }
@@ -586,24 +620,23 @@ Create proxy.conf.json:
     ```
 
 - **Chart Customization**:
-  - NGX-Charts is used for the bar chart. If you need a different chart type (e.g., pie), update `filter-rules-chart.component`.
-  - Example for pie chart:
+  - NGX-Charts renders a vertical bar chart. For a different chart (e.g., pie), update `filter-rules-chart.component.html`:
     ```html
     <ngx-charts-pie-chart [results]="chartData"></ngx-charts-pie-chart>
     ```
 
 - **CORS**:
-  - If the API is on a different domain, use a proxy (see `README.md`) or ensure the backend includes CORS headers.
+  - Use a proxy (see `README.md`) or ensure the backend includes CORS headers.
 
 - **ZIP File**:
-  - Create the directory structure, copy the files above, and compress:
+  - Create the directory structure, copy the files, and compress:
     ```bash
     zip -r gdp-channels-dashboard.zip gdp-channels-dashboard
     ```
-  - If you prefer, I can create a GitHub Gist with all files for download as a ZIP. Let me know!
+  - If you prefer a GitHub Gist for download, let me know, and I’ll provide a link.
 
 - **Testing**:
-  - Run `ng test` to execute unit tests (default Karma setup).
-  - Test API connectivity using browser developer tools.
+  - Run `ng test` for unit tests.
+  - Debug API issues using browser developer tools.
 
-If you need a Gist link, specific API customizations (e.g., different endpoints or data structure), or further assistance, please let me know!
+If you need a Gist, specific API customizations, or additional features (e.g., pagination, search), please let me know!
