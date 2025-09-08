@@ -1,0 +1,700 @@
+### Backend (Spring Boot with Java and Maven)
+
+I'll start with the backend setup. This uses Spring Boot 3.x with Java, JPA for Oracle database interaction, and REST APIs. Assume you have an Oracle database with tables:
+
+- `users` (columns: `id` VARCHAR PRIMARY KEY, `name` VARCHAR)
+- `analysts` (columns: `id` VARCHAR PRIMARY KEY, `name` VARCHAR)
+- `companies` (columns: `ticker` VARCHAR PRIMARY KEY, `name` VARCHAR)
+- `topics` (columns: `id` VARCHAR PRIMARY KEY, `name` VARCHAR)
+- `subscriptions` (columns: `user_id` VARCHAR, `analyst_id` VARCHAR NULL, `company_ticker` VARCHAR NULL, `topic_id` VARCHAR NULL) – This allows flexible subscriptions to any combination.
+- `reports` (columns: `id` VARCHAR PRIMARY KEY, `title` VARCHAR, `analyst_id` VARCHAR, `company_ticker` VARCHAR, `topic_id` VARCHAR, `publish_date` DATE) – For the distributed reports list.
+
+You'll need to adjust the schema if it differs. For Oracle connection, use the Oracle JDBC driver.
+
+#### Project Structure
+```
+src/main/java/com/example/subscriptionapp
+├── Application.java
+├── config/DatabaseConfig.java (optional for custom config)
+├── controller
+│   ├── AuthController.java
+│   ├── ContentController.java
+│   └── SubscriptionController.java
+├── entity
+│   ├── Analyst.java
+│   ├── Company.java
+│   ├── Report.java
+│   ├── Subscription.java
+│   ├── Topic.java
+│   └── User.java
+├── repository
+│   ├── AnalystRepository.java
+│   ├── CompanyRepository.java
+│   ├── ReportRepository.java
+│   ├── SubscriptionRepository.java
+│   ├── TopicRepository.java
+│   └── UserRepository.java
+├── service
+│   ├── AuthService.java
+│   ├── ContentService.java
+│   └── SubscriptionService.java
+└── dto
+    ├── LoginRequest.java
+    ├── SubscriptionRequest.java
+    └── ... (other DTOs as needed)
+```
+
+#### pom.xml (Maven Build File)
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <groupId>com.example</groupId>
+    <artifactId>subscription-app</artifactId>
+    <version>0.0.1-SNAPSHOT</version>
+
+    <parent>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-parent</artifactId>
+        <version>3.1.0</version>
+        <relativePath/>
+    </parent>
+
+    <properties>
+        <java.version>17</java.version>
+    </properties>
+
+    <dependencies>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-web</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-jpa</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.oracle.database.jdbc</groupId>
+            <artifactId>ojdbc11</artifactId>
+            <version>23.2.0.0</version>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+            </plugin>
+        </plugins>
+    </build>
+</project>
+```
+
+#### application.yml (Configuration)
+```yaml
+spring:
+  datasource:
+    url: jdbc:oracle:thin:@//your-oracle-host:1521/your-service-name
+    username: your-db-username
+    password: your-db-password
+    driver-class-name: oracle.jdbc.OracleDriver
+  jpa:
+    hibernate:
+      ddl-auto: none  # Don't auto-create tables; assume they exist
+    show-sql: true
+server:
+  port: 8080
+```
+
+#### Application.java
+```java
+package com.example.subscriptionapp;
+
+import org.springframework.boot.SpringApplication;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
+
+@SpringBootApplication
+public class Application {
+    public static void main(String[] args) {
+        SpringApplication.run(Application.class, args);
+    }
+}
+```
+
+#### Entities (Example: Analyst.java)
+```java
+package com.example.subscriptionapp.entity;
+
+import jakarta.persistence.Entity;
+import jakarta.persistence.Id;
+import jakarta.persistence.Table;
+
+@Entity
+@Table(name = "analysts")
+public class Analyst {
+    @Id
+    private String id;
+    private String name;
+
+    // Getters and Setters
+    public String getId() {
+        return id;
+    }
+
+    public void setId(String id) {
+        this.id = id;
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public void setName(String name) {
+        this.name = name;
+    }
+}
+
+// Similarly for Company.java (use @Id on ticker), Topic.java, User.java, Report.java
+
+@Entity
+@Table(name = "subscriptions")
+public class Subscription {
+    @Id
+    private String id; // Auto-generate if needed
+    private String userId;
+    private String analystId;
+    private String companyTicker;
+    private String topicId;
+
+    // Getters and Setters
+    public String getId() {
+        return id;
+    }
+
+    public void setId(String id) {
+        this.id = id;
+    }
+
+    public String getUserId() {
+        return userId;
+    }
+
+    public void setUserId(String userId) {
+        this.userId = userId;
+    }
+
+    public String getAnalystId() {
+        return analystId;
+    }
+
+    public void setAnalystId(String analystId) {
+        this.analystId = analystId;
+    }
+
+    public String getCompanyTicker() {
+        return companyTicker;
+    }
+
+    public void setCompanyTicker(String companyTicker) {
+        this.companyTicker = companyTicker;
+    }
+
+    public String getTopicId() {
+        return topicId;
+    }
+
+    public void setTopicId(String topicId) {
+        this.topicId = topicId;
+    }
+}
+```
+
+#### Repositories (Example: AnalystRepository.java)
+```java
+package com.example.subscriptionapp.repository;
+
+import com.example.subscriptionapp.entity.Analyst;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.stereotype.Repository;
+
+@Repository
+public interface AnalystRepository extends JpaRepository<Analyst, String> {
+}
+
+// Similarly for others: CompanyRepository (String for ticker), TopicRepository, UserRepository, SubscriptionRepository, ReportRepository
+```
+
+#### Services (Example: AuthService.java)
+```java
+package com.example.subscriptionapp.service;
+
+import com.example.subscriptionapp.dto.LoginRequest;
+import com.example.subscriptionapp.repository.UserRepository;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+
+import java.util.Optional;
+
+@Service
+public class AuthService {
+
+    @Autowired
+    private UserRepository userRepository;
+
+    public boolean checkUserExists(LoginRequest request) {
+        Optional<User> user = userRepository.findById(request.getId());
+        return user.isPresent();
+    }
+}
+
+// ContentService.java for fetching analysts/companies/topics/reports
+@Service
+public class ContentService {
+
+    @Autowired
+    private AnalystRepository analystRepository;
+
+    @Autowired
+    private CompanyRepository companyRepository;
+
+    @Autowired
+    private TopicRepository topicRepository;
+
+    @Autowired
+    private ReportRepository reportRepository;
+
+    public List<Analyst> getAnalysts() {
+        return analystRepository.findAll();
+    }
+
+    public List<Company> getCompanies() {
+        return companyRepository.findAll();
+    }
+
+    public List<Topic> getTopics() {
+        return topicRepository.findAll();
+    }
+
+    public List<Report> getReports() {
+        return reportRepository.findAll();
+    }
+}
+
+// SubscriptionService.java
+@Service
+public class SubscriptionService {
+
+    @Autowired
+    private SubscriptionRepository subscriptionRepository;
+
+    public void saveSubscription(String userId, SubscriptionRequest request) {
+        // Logic to save multiple subscriptions if needed
+        Subscription sub = new Subscription();
+        sub.setUserId(userId);
+        sub.setAnalystId(request.getAnalystId());
+        sub.setCompanyTicker(request.getCompanyTicker());
+        sub.setTopicId(request.getTopicId());
+        subscriptionRepository.save(sub);
+    }
+}
+```
+
+#### Controllers (Example: AuthController.java)
+```java
+package com.example.subscriptionapp.controller;
+
+import com.example.subscriptionapp.dto.LoginRequest;
+import com.example.subscriptionapp.service.AuthService;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RestController;
+
+@RestController
+public class AuthController {
+
+    @Autowired
+    private AuthService authService;
+
+    @PostMapping("/api/login")
+    public ResponseEntity<Boolean> login(@RequestBody LoginRequest request) {
+        boolean exists = authService.checkUserExists(request);
+        return ResponseEntity.ok(exists);
+    }
+}
+
+// ContentController.java
+@RestController
+public class ContentController {
+
+    @Autowired
+    private ContentService contentService;
+
+    @GetMapping("/api/analysts")
+    public List<Analyst> getAnalysts() {
+        return contentService.getAnalysts();
+    }
+
+    @GetMapping("/api/companies")
+    public List<Company> getCompanies() {
+        return contentService.getCompanies();
+    }
+
+    @GetMapping("/api/topics")
+    public List<Topic> getTopics() {
+        return contentService.getTopics();
+    }
+
+    @GetMapping("/api/reports")
+    public List<Report> getReports() {
+        return contentService.getReports();
+    }
+}
+
+// SubscriptionController.java
+@RestController
+public class SubscriptionController {
+
+    @Autowired
+    private SubscriptionService subscriptionService;
+
+    @PostMapping("/api/subscribe")
+    public ResponseEntity<Void> subscribe(@RequestParam String userId, @RequestBody SubscriptionRequest request) {
+        subscriptionService.saveSubscription(userId, request);
+        return ResponseEntity.ok().build();
+    }
+}
+```
+
+#### DTOs (Example: LoginRequest.java)
+```java
+package com.example.subscriptionapp.dto;
+
+public class LoginRequest {
+    private String id;
+    private String name;
+
+    // Getters and Setters
+    public String getId() {
+        return id;
+    }
+
+    public void setId(String id) {
+        this.id = id;
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public void setName(String name) {
+        this.name = name;
+    }
+}
+
+public class SubscriptionRequest {
+    private String analystId;
+    private String companyTicker;
+    private String topicId;
+
+    // Getters and Setters
+    public String getAnalystId() {
+        return analystId;
+    }
+
+    public void setAnalystId(String analystId) {
+        this.analystId = analystId;
+    }
+
+    public String getCompanyTicker() {
+        return companyTicker;
+    }
+
+    public void setCompanyTicker(String companyTicker) {
+        this.companyTicker = companyTicker;
+    }
+
+    public String getTopicId() {
+        return topicId;
+    }
+
+    public void setTopicId(String topicId) {
+        this.topicId = topicId;
+    }
+}
+```
+
+To run: `mvn spring-boot:run`. This sets up APIs like `/api/login`, `/api/analysts`, etc.
+
+### Frontend (Angular)
+
+Use Angular 16+. Create a new app: `ng new subscription-dashboard --style=css --routing=false`.
+
+#### Project Structure
+```
+src/app
+├── app.component.ts/html/css
+├── app.module.ts
+├── login
+│   ├── login.component.ts
+│   ├── login.component.html
+│   └── login.component.css
+├── dashboard
+│   ├── dashboard.component.ts
+│   ├── dashboard.component.html
+│   └── dashboard.component.css
+├── reports
+│   ├── reports.component.ts
+│   ├── reports.component.html
+│   └── reports.component.css
+├── services
+│   └── api.service.ts
+└── models
+    ├── analyst.ts
+    ├── company.ts
+    ├── topic.ts
+    ├── report.ts
+    └── subscription.ts
+```
+
+#### app.module.ts
+```typescript
+import { NgModule } from '@angular/core';
+import { BrowserModule } from '@angular/platform-browser';
+import { HttpClientModule } from '@angular/common/http';
+import { FormsModule } from '@angular/forms';
+
+import { AppComponent } from './app.component';
+import { LoginComponent } from './login/login.component';
+import { DashboardComponent } from './dashboard/dashboard.component';
+import { ReportsComponent } from './reports/reports.component';
+import { ApiService } from './services/api.service';
+
+@NgModule({
+  declarations: [
+    AppComponent,
+    LoginComponent,
+    DashboardComponent,
+    ReportsComponent
+  ],
+  imports: [
+    BrowserModule,
+    HttpClientModule,
+    FormsModule
+  ],
+  providers: [ApiService],
+  bootstrap: [AppComponent]
+})
+export class AppModule { }
+```
+
+#### Models (Example: analyst.ts)
+```typescript
+export interface Analyst {
+  id: string;
+  name: string;
+}
+
+// Similarly for Company (ticker: string, name: string), Topic, Report, etc.
+```
+
+#### api.service.ts
+```typescript
+import { Injectable } from '@angular/core';
+import { HttpClient } from '@angular/common/http';
+import { Observable } from 'rxjs';
+
+import { Analyst } from '../models/analyst';
+import { Company } from '../models/company';
+import { Topic } from '../models/topic';
+import { Report } from '../models/report';
+
+@Injectable({
+  providedIn: 'root'
+})
+export class ApiService {
+  private baseUrl = 'http://localhost:8080/api'; // Adjust to your backend URL
+
+  constructor(private http: HttpClient) { }
+
+  login(id: string, name: string): Observable<boolean> {
+    return this.http.post<boolean>(`${this.baseUrl}/login`, { id, name });
+  }
+
+  getAnalysts(): Observable<Analyst[]> {
+    return this.http.get<Analyst[]>(`${this.baseUrl}/analysts`);
+  }
+
+  getCompanies(): Observable<Company[]> {
+    return this.http.get<Company[]>(`${this.baseUrl}/companies`);
+  }
+
+  getTopics(): Observable<Topic[]> {
+    return this.http.get<Topic[]>(`${this.baseUrl}/topics`);
+  }
+
+  getReports(): Observable<Report[]> {
+    return this.http.get<Report[]>(`${this.baseUrl}/reports`);
+  }
+
+  subscribe(userId: string, subscription: any): Observable<void> {
+    return this.http.post<void>(`${this.baseUrl}/subscribe?userId=${userId}`, subscription);
+  }
+}
+```
+
+#### login.component.ts
+```typescript
+import { Component } from '@angular/core';
+import { ApiService } from '../services/api.service';
+
+@Component({
+  selector: 'app-login',
+  templateUrl: './login.component.html',
+  styleUrls: ['./login.component.css']
+})
+export class LoginComponent {
+  id: string = '';
+  name: string = '';
+  loggedIn: boolean = false;
+  userId: string = ''; // Store after login
+
+  constructor(private apiService: ApiService) { }
+
+  onLogin() {
+    this.apiService.login(this.id, this.name).subscribe(exists => {
+      if (exists) {
+        this.loggedIn = true;
+        this.userId = this.id;
+        // Redirect to dashboard, e.g., using Router if added
+      } else {
+        alert('User does not exist');
+      }
+    });
+  }
+}
+```
+
+#### login.component.html
+```html
+<div *ngIf="!loggedIn">
+  <h2>Login</h2>
+  <input [(ngModel)]="id" placeholder="Person ID" />
+  <input [(ngModel)]="name" placeholder="Name" />
+  <button (click)="onLogin()">Login</button>
+</div>
+<app-dashboard *ngIf="loggedIn" [userId]="userId"></app-dashboard>
+```
+
+#### dashboard.component.ts (Subscription Screen)
+```typescript
+import { Component, Input, OnInit } from '@angular/core';
+import { ApiService } from '../services/api.service';
+import { Analyst } from '../models/analyst';
+import { Company } from '../models/company';
+import { Topic } from '../models/topic';
+
+@Component({
+  selector: 'app-dashboard',
+  templateUrl: './dashboard.component.html',
+  styleUrls: ['./dashboard.component.css']
+})
+export class DashboardComponent implements OnInit {
+  @Input() userId: string = '';
+  analysts: Analyst[] = [];
+  companies: Company[] = [];
+  topics: Topic[] = [];
+  selectedAnalyst: string = '';
+  selectedCompany: string = '';
+  selectedTopic: string = '';
+
+  constructor(private apiService: ApiService) { }
+
+  ngOnInit() {
+    this.apiService.getAnalysts().subscribe(data => this.analysts = data);
+    this.apiService.getCompanies().subscribe(data => this.companies = data);
+    this.apiService.getTopics().subscribe(data => this.topics = data);
+  }
+
+  onSubscribe() {
+    const sub = {
+      analystId: this.selectedAnalyst || null,
+      companyTicker: this.selectedCompany || null,
+      topicId: this.selectedTopic || null
+    };
+    this.apiService.subscribe(this.userId, sub).subscribe(() => alert('Subscribed!'));
+  }
+}
+```
+
+#### dashboard.component.html
+```html
+<h2>Subscribe to Content</h2>
+<select [(ngModel)]="selectedAnalyst">
+  <option value="">Select Analyst</option>
+  <option *ngFor="let a of analysts" [value]="a.id">{{a.name}}</option>
+</select>
+<select [(ngModel)]="selectedCompany">
+  <option value="">Select Company</option>
+  <option *ngFor="let c of companies" [value]="c.ticker">{{c.name}} ({{c.ticker}})</option>
+</select>
+<select [(ngModel)]="selectedTopic">
+  <option value="">Select Topic</option>
+  <option *ngFor="let t of topics" [value]="t.id">{{t.name}}</option>
+</select>
+<button (click)="onSubscribe()">Subscribe</button>
+
+<a href="/reports">View Distributed Reports</a> <!-- Use RouterLink if routing enabled -->
+```
+
+#### reports.component.ts (Distributed Reports Screen)
+```typescript
+import { Component, OnInit } from '@angular/core';
+import { ApiService } from '../services/api.service';
+import { Report } from '../models/report';
+
+@Component({
+  selector: 'app-reports',
+  templateUrl: './reports.component.html',
+  styleUrls: ['./reports.component.css']
+})
+export class ReportsComponent implements OnInit {
+  reports: Report[] = [];
+
+  constructor(private apiService: ApiService) { }
+
+  ngOnInit() {
+    this.apiService.getReports().subscribe(data => this.reports = data);
+  }
+}
+```
+
+#### reports.component.html
+```html
+<h2>Distributed Reports</h2>
+<ul>
+  <li *ngFor="let r of reports">
+    {{r.title}} - Analyst: {{r.analystId}}, Company: {{r.companyTicker}}, Topic: {{r.topicId}}, Date: {{r.publishDate}}
+  </li>
+</ul>
+```
+
+#### app.component.html
+```html
+<app-login></app-login>
+<!-- Or use routing for navigation between components -->
+```
+
+To run: `ng serve`. The login checks existence via API, dashboard allows selecting and subscribing (saves to DB), and reports lists all distributed reports.
+
+This is a basic implementation. Enhance with routing (add Angular Router), error handling, authentication tokens (e.g., JWT after login), and UI libraries like Angular Material for better dashboard visuals. Test DB connections and adjust entities/repositories as per your exact schema.
