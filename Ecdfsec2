@@ -1,0 +1,32 @@
+c. Created the demo use cased in AEP and presented to management to understand the pros and cons of the platform and approaches. d. orked with Adobe SMEs to get the doubts cleared around fundamentals of AEP. eived India Individual Excellence Award IB AFCC for the above tasks. Resolved Regulatory issue: Implemented bug reported in banking relationship chart at a very short notice. eived India Individual Excellence Award IB AFCC for this task. Implemented new functionality to update synopsis via GDP. Earlier without this functionality, synopsis update request used to come to Support am and was done via direct SQL update. Implemented the same with UI and backend changes. GDP : Worked on setting up Det IPA client named "AIERA" to send the publications. RCADE: Fixed Snapshot distribution issue for scheduled publications. Scheduled publications were not routing back to any previous stage, even if document as rOute back, causing old copy of document to be distributed. GDP : Implemented.blocking queue to process the GDP document processing to prevent the ssh connection failure. This was done using Thread ecutor in multithreading. OCP4 Upstream migration support : Did the confiquration changes for all OCP4 upstream apis and supported them for the 3mooth rollout of OCP4 gration.
+Fixed/Analyzed few of tricky issues in RCADE application a.PDF page count issue. Document was stuck while distribution due to page count logic written in RCADE. Implemented new logic to fix this issue. b.RCA of Truncation of historical price chart due to page size issue. S c. Issue in distributing scheduled research document.
+EXACC migration for RPDIL - Completed and delivered the EXACC (Oracle 12c to 19c) migration for RPDIL application Implemented Admin UI Auditing to track the user actions. ithout auditing it wag hard to figure out the roles and admin changes done for RCADE. Onboarded RPDIL Certificate on Certhub for auto renewal and certificate management Documented the RPDIL Feed data mapping against the Research Portal, which helps the person on Production support to debug analyze any RDPIL sues rather quickly.
+GDP Implemented Sending Legal PDF and metadata in RCADE via Cruise Rest Service Executed client channel update requests in DBExchange for few clients (SaP, MWAM, Thomson Reuters). eBCM Activity : Worked actively on all eBCM activities and supported Primary coordinator to perform all actions before overdu. CSR activity - Participated in Power of One where we made Paper Bags to be distributed to various NGOs. Participated in Global Hackathon.
+Implemented Excel attachment support for Internal Reware channel
+length:4,962 lines:41
+Ln: Col:38 Pos: 4,963
+Windows (CR LF)
+UTF-8
+8:47 PM 9/15/2025
+INS Es
+delete
+Ox F4
+o F6
+`F7
+FR
+Fg
+prt sc F10
+home
+F11
+end F12
+insert
+C O
+X
+G 2
+# 3
+$ 43
+% 5€
+& 7
+6
+8
+backs
