@@ -1,0 +1,38 @@
+### Basic Level Questions on Java Collections
+
+1. What is the Java Collections Framework? Explain its hierarchy.
+2. What are the main interfaces in the Collections Framework? (e.g., List, Set, Map)
+3. What is the difference between a Collection and Collections in Java?
+4. Explain the difference between List and Set interfaces.
+5. What is the difference between ArrayList and LinkedList?
+6. When would you use a HashSet over a TreeSet?
+7. What is a Map interface? How does it differ from a Collection?
+8. Explain the difference between HashMap and Hashtable.
+9. What is an Iterator? How do you use it to traverse a Collection?
+10. What is the purpose of the Comparable and Comparator interfaces in Collections?
+
+### Intermediate Level Questions on Java Collections
+
+1. How does HashMap internally store key-value pairs? Explain the hashing mechanism.
+2. What happens when two different keys have the same hash code in a HashMap?
+3. Explain the resizing process in ArrayList. What is its default initial capacity?
+4. How does LinkedHashMap maintain insertion order?
+5. What is the time complexity for common operations (get, add, remove) in ArrayList, LinkedList, HashSet, and HashMap?
+6. How can you make a Collection thread-safe? Give examples.
+7. Explain fail-fast and fail-safe iterators with examples.
+8. What is the difference between PriorityQueue and TreeSet?
+9. How do you sort a List using Comparator?
+10. What is the role of the equals() and hashCode() methods in Collections like HashSet and HashMap?
+
+### Advanced Level Questions on Java Collections
+
+1. Explain the internal implementation of ConcurrentHashMap. How does it achieve thread-safety without locking the entire map?
+2. How would you implement a custom HashMap? Discuss handling collisions and resizing.
+3. What are the differences between HashMap, LinkedHashMap, and TreeMap in terms of ordering and performance?
+4. Describe how TreeMap uses Red-Black Tree for its implementation.
+5. Explain the concept of load factor in HashMap and its impact on performance.
+6. How do you handle large datasets with Collections to avoid OutOfMemoryError? Discuss strategies like using streams or external sorting.
+7. What is the difference between CopyOnWriteArrayList and synchronized ArrayList in a multi-threaded environment?
+8. How can you create an immutable Collection in Java? Provide examples using Java 9+ features.
+9. Discuss the use of Spliterator in Java 8+ for parallel processing of Collections.
+10. Explain a scenario where you would use WeakHashMap over HashMap, and why.
