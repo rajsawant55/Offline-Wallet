@@ -1,0 +1,213 @@
+Java Collections Interview Questions: Basic to Advanced
+
+Basic Level
+
+Core Concepts
+
+1. What are the main interfaces in the Java Collections Framework?
+   · Collection (root interface)
+   · List, Set, Queue (sub-interfaces of Collection)
+   · Map (separate hierarchy)
+   · Iterable (super-interface of Collection)
+2. Explain the difference between Collection and Collections
+   · Collection is an interface representing a group of objects
+   · Collections is a utility class with static methods for collection operations
+3. What are the differences between List, Set, and Map?
+   · List: Ordered, allows duplicates, indexed access
+   · Set: No duplicates, unordered (except TreeSet/LinkedHashSet)
+   · Map: Key-value pairs, keys unique
+
+ArrayList vs LinkedList
+
+1. When would you use ArrayList vs LinkedList?
+   · ArrayList: Random access (get/set), memory efficient for read-heavy operations
+   · LinkedList: Frequent insertions/deletions, implements Queue interfaces
+2. What is the default initial capacity of ArrayList?
+   · 10 (from Java 7 onwards)
+
+HashMap Basics
+
+1. How does HashMap work internally?
+   · Uses array of buckets (nodes)
+   · hashCode() determines bucket, equals() handles collisions
+   · Converts to tree (TreeNode) when threshold (8) is reached
+2. What happens when you put a duplicate key in HashMap?
+   · Overwrites the existing value, returns old value
+
+Intermediate Level
+
+HashMap Internals
+
+1. Explain the hash collision resolution in HashMap
+   · Separate chaining with linked lists (Java 7)
+   · Separate chaining with linked lists/trees (Java 8+)
+   · Converts to Red-Black tree when list size > 8 and capacity > 64
+2. Why should keys in HashMap be immutable?
+   · If key's hashCode changes after insertion, it becomes unreachable
+   · String, Integer are good keys because they're immutable
+3. What is rehashing in HashMap?
+   · When load factor (0.75 by default) is exceeded, capacity doubles
+   · All entries are re-indexed (expensive operation)
+
+Thread Safety
+
+1. Which collections are thread-safe?
+   · Legacy: Vector, Hashtable, Stack
+   · Concurrent: ConcurrentHashMap, CopyOnWriteArrayList, BlockingQueue implementations
+   · Synchronized wrappers: Collections.synchronizedList(), synchronizedMap()
+2. Difference between ConcurrentHashMap and synchronizedMap?
+   · synchronizedMap: Locks entire map for all operations
+   · ConcurrentHashMap: Segment-level or bucket-level locking (Java 7), CAS operations (Java 8+)
+
+Equals and HashCode
+
+1. Why override equals() and hashCode() together?
+   · Contract: Equal objects must have equal hashCodes
+   · HashMap/HashSet relies on this contract
+2. What happens if we don't override hashCode()?
+   · Default Object.hashCode() gives different values for different objects
+   · Equal objects may end up in different buckets in HashMap
+
+Comparable vs Comparator
+
+1. Difference between Comparable and Comparator?
+   · Comparable: Natural ordering (implements compareTo())
+   · Comparator: Custom ordering (separate class, implements compare())
+   · TreeSet/TreeMap use these for ordering
+
+Advanced Level
+
+HashMap Deep Dive
+
+1. How does HashMap handle null keys?
+   · Stored in bucket 0 (index 0 of array)
+   · Special handling in get/put methods
+2. Explain the treeification process in HashMap (Java 8+)
+   · When bucket list length > 8 AND table size > 64
+   · Linked list converted to Red-Black tree (TreeNode)
+   · Improves worst-case performance from O(n) to O(log n)
+3. Why is HashMap's load factor 0.75?
+   · Tradeoff between time and space complexity
+   · Lower value: More space, less collisions
+   · Higher value: Less space, more collisions
+
+Concurrent Collections
+
+1. How does ConcurrentHashMap achieve thread-safety in Java 8+?
+   · Uses synchronized blocks on first node of bucket
+   · CAS (Compare-And-Swap) operations for size management
+   · No segment locking (removed from Java 8)
+2. What is CopyOnWriteArrayList and when to use it?
+   · Creates new array on modification, thread-safe for read-heavy scenarios
+   · Used in listener lists, observer patterns
+   · Expensive for write operations
+
+Memory & Performance
+
+1. Memory overhead of different collections?
+   · ArrayList: ~8 bytes per element (object reference)
+   · LinkedList: ~24 bytes per element (node object)
+   · HashMap: ~32 bytes per entry (Node object + overhead)
+2. How to choose initial capacity for HashMap?
+   · Expected elements / load factor
+   · Example: For 100 elements: 100/0.75 = 134 → round to power of 2 → 256
+
+Fail-Fast vs Fail-Safe Iterators
+
+1. Difference between fail-fast and fail-safe iterators?
+   · Fail-fast: ConcurrentModificationException if collection modified during iteration (ArrayList, HashMap)
+   · Fail-safe: Works on copy, no exception (CopyOnWriteArrayList, ConcurrentHashMap)
+
+Advanced Java 8+ Features
+
+1. How to convert List to Map using Streams?
+
+```java
+   Map<Integer, Employee> map = employees.stream()
+       .collect(Collectors.toMap(Employee::getId, Function.identity()));
+```
+
+1. How to sort Map by values?
+
+```java
+   Map<String, Integer> sorted = map.entrySet().stream()
+       .sorted(Map.Entry.comparingByValue())
+       .collect(Collectors.toMap(
+           Map.Entry::getKey, 
+           Map.Entry::getValue,
+           (e1, e2) -> e1, 
+           LinkedHashMap::new));
+```
+
+Edge Cases & Tricky Questions
+
+1. Can we use a mutable object as HashMap key? What issues?
+   · Yes, but dangerous
+   · If hashCode() changes, cannot retrieve the entry
+   · Can cause memory leaks
+2. What is the difference between HashSet and TreeSet?
+   · HashSet: Hash table, O(1) average, unordered
+   · TreeSet: Red-Black tree, O(log n), sorted (Comparable/Comparator)
+3. How to design a cache with LRU (Least Recently Used) eviction?
+   · Use LinkedHashMap with accessOrder=true and override removeEldestEntry()
+   ```java
+   new LinkedHashMap<K,V>(capacity, 0.75f, true) {
+       protected boolean removeEldestEntry(Map.Entry<K,V> eldest) {
+           return size() > MAX_CAPACITY;
+       }
+   };
+   ```
+
+Multi-threading Scenarios
+
+1. What is the "check-then-act" problem with collections?
+   · Race condition between checking and modifying
+   · Example: if(!list.contains(x)) list.add(x)
+   · Solution: Synchronization or concurrent collections
+2. How does BlockingQueue work?
+   · Thread-safe queue with blocking operations
+   · put() blocks if full, take() blocks if empty
+   · Used in producer-consumer patterns
+
+Practical Coding Questions
+
+1. Find duplicate elements in a list
+2. Sort a HashMap by values
+3. Implement your own ArrayList/HashMap
+4. Find first non-repeating character in string using collections
+5. Merge two sorted lists
+6. Implement LRU cache using LinkedHashMap
+7. Find intersection of two lists
+8. Check if two strings are anagrams using HashMap
+9. Implement a custom iterator for a collection
+10. Thread-safe counter using ConcurrentHashMap
+
+Design Questions
+
+1. "Design a data structure that supports insert, delete, search, and getRandom in O(1) time"
+2. "How would you implement Google's autocomplete feature?"
+3. "Design a cache system with TTL (Time to Live) expiration"
+4. "Implement a concurrent version of HashMap"
+5. "Design a system to store and query stock prices efficiently"
+
+Preparation Tips
+
+1. Understand internals: Know how each collection works at the byte level
+2. Practice coding: Implement custom collections from scratch
+3. Know use cases: When to use which collection in real scenarios
+4. Memory analysis: Understand memory footprint of different collections
+5. Concurrency: Master thread-safe collections and their trade-offs
+6. Java 8+ features: Streams, lambdas with collections
+7. Performance: Time complexity of all operations for each collection
+
+Common Pitfalls to Avoid
+
+1. Using raw types (pre-generics)
+2. Modifying collections while iterating
+3. Not considering thread-safety requirements
+4. Choosing wrong collection for the use case
+5. Not implementing equals() and hashCode() properly
+6. Memory leaks with HashSet/HashMap (when using mutable keys)
+7. Not specifying initial capacity for large collections
+
+Remember: For a senior position with 10 years experience, interviewers expect deep understanding of internals, performance characteristics, and real-world application scenarios. Be prepared to discuss trade-offs and design decisions.
