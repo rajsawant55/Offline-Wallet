@@ -1,0 +1,466 @@
+Since you want to target Mastercard in Pune for Senior / Lead Backend Engineer, here is a complete preparation pack covering:
+
+1️⃣ Most asked coding questions
+2️⃣ Java deep-dive questions
+3️⃣ System design example with solution
+4️⃣ Backend architecture topics
+5️⃣ A focused 6–8 week preparation roadmap
+
+This is tailored for your 9.6 years experience and current role at Deutsche Bank.
+
+
+---
+
+1️⃣ Mastercard Coding Questions (Frequently Asked)
+
+Difficulty: Medium level
+
+You should comfortably solve these types of problems.
+
+Arrays / HashMap
+
+Two Sum
+
+Top K Frequent Elements
+
+Subarray Sum Equals K
+
+Product of Array Except Self
+
+
+Sliding Window
+
+Longest substring without repeating characters
+
+Minimum window substring
+
+
+Intervals
+
+Merge intervals
+
+Insert interval
+
+
+Heap
+
+Kth largest element
+
+Top K frequent elements
+
+
+Design
+
+LRU Cache
+
+Rate limiter
+
+
+👉 Recommended practice:
+
+Solve 50–70 medium problems.
+
+Good platforms:
+
+LeetCode
+
+HackerRank
+
+
+
+---
+
+2️⃣ Java Deep Dive Questions
+
+For 9+ years experience, they will go deeper into internals.
+
+JVM
+
+Prepare:
+
+JVM memory model
+
+Heap vs stack
+
+Metaspace
+
+Garbage collection types
+
+
+Typical question:
+
+Explain how GC works in Java.
+
+Good answer should mention:
+
+Young generation
+
+Old generation
+
+Minor GC
+
+Major GC
+
+
+
+---
+
+Multithreading
+
+Important topics:
+
+Thread pools
+
+Executor framework
+
+CompletableFuture
+
+
+Typical questions:
+
+Difference between synchronized and volatile
+
+How does ConcurrentHashMap work?
+
+
+---
+
+Collections Internals
+
+They often ask:
+
+What happens when HashMap collisions occur?
+
+Key points expected:
+
+bucket
+
+linked list
+
+treeify (Java 8)
+
+
+
+---
+
+3️⃣ Spring Boot / Microservices Questions
+
+Typical questions:
+
+Spring Boot
+
+What is auto-configuration?
+
+How does dependency injection work?
+
+Difference between @Component / @Service / @Repository
+
+
+
+---
+
+Microservices
+
+Expect architecture discussion:
+
+Example questions:
+
+How do microservices communicate?
+
+How do you handle service failure?
+
+What is circuit breaker?
+
+
+You should know tools like:
+
+Resilience4j
+
+API gateway
+
+service discovery
+
+
+
+---
+
+4️⃣ Kafka Questions
+
+Very important for payment companies.
+
+Prepare:
+
+Kafka architecture
+
+partitions
+
+consumer groups
+
+offset management
+
+
+Typical questions:
+
+What happens if consumer fails?
+
+Expected answer:
+
+offset commit
+
+rebalance
+
+
+
+---
+
+5️⃣ System Design Example (Payment System)
+
+This type of question is very common at Mastercard.
+
+Question
+
+Design a payment processing system.
+
+
+---
+
+Step 1 — Requirements
+
+Functional:
+
+Process payment requests
+
+Handle millions of transactions
+
+Ensure reliability
+
+
+Non-functional:
+
+scalability
+
+fault tolerance
+
+low latency
+
+
+
+---
+
+Step 2 — High Level Architecture
+
+Components:
+
+Client → API Gateway → Payment Service → Kafka → Processing Service → Database
+
+Supporting services:
+
+Fraud detection
+
+Notification service
+
+Logging
+
+
+
+---
+
+Step 3 — Important Concepts
+
+Idempotency
+
+Prevent duplicate payments.
+
+Example:
+
+Client sends idempotency key
+
+
+---
+
+Event driven architecture
+
+Payment events published to Kafka.
+
+Example topics:
+
+payment_created
+payment_completed
+payment_failed
+
+
+---
+
+Retry mechanism
+
+Use:
+
+retry queue
+
+dead letter queue
+
+
+
+---
+
+Step 4 — Scalability
+
+Use:
+
+microservices
+
+Kafka partitions
+
+horizontal scaling
+
+
+
+---
+
+6️⃣ Database Questions
+
+Typical questions:
+
+How to optimize slow SQL query?
+
+What is indexing?
+
+Explain ACID properties
+
+
+You should also know:
+
+connection pooling
+
+pagination
+
+batch processing
+
+
+
+---
+
+7️⃣ Behavioral Questions
+
+Companies like Mastercard evaluate:
+
+ownership
+
+leadership
+
+collaboration
+
+
+Prepare stories like:
+
+production incident handled
+
+performance improvement
+
+mentoring juniors
+
+
+Use STAR format:
+
+Situation
+Task
+Action
+Result
+
+
+---
+
+8️⃣ Preparation Roadmap (8 Weeks)
+
+Week 1–2
+
+Coding practice
+
+Solve:
+
+arrays
+
+sliding window
+
+hashmap
+
+
+
+---
+
+Week 3–4
+
+Java deep dive
+
+Focus:
+
+concurrency
+
+collections
+
+JVM
+
+
+
+---
+
+Week 5
+
+Spring Boot / Microservices
+
+
+---
+
+Week 6
+
+Kafka
+
+
+---
+
+Week 7
+
+System design
+
+Practice:
+
+payment system
+
+rate limiter
+
+notification service
+
+
+
+---
+
+Week 8
+
+Mock interviews
+
+
+---
+
+⭐ Biggest Advantage You Already Have
+
+Because you work at Deutsche Bank, you can highlight:
+
+high-scale systems
+
+financial domain
+
+reliability requirements
+
+
+This aligns very well with Mastercard.
+
+
+---
+
+🚀 If you want, I can also show you:
+
+1️⃣ Real Mastercard system design diagram (Payment System)
+2️⃣ Top 40 Java interview questions for 10 years experience
+3️⃣ Exact DSA problems list (50 problems) to crack fintech interviews
+
+These will dramatically increase your chances of landing a 50–70 LPA role.
