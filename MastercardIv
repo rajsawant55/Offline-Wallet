@@ -1,0 +1,360 @@
+Targeting Mastercard in Pune is a very good strategy for you. Your banking experience at Deutsche Bank + Java microservices stack fits very well with Mastercard’s backend roles.
+
+Below is a realistic preparation guide for a 9–10 year Java backend engineer.
+
+
+---
+
+1️⃣ Roles You Will Likely Be Interviewed For
+
+Typical titles at Mastercard for your experience:
+
+Senior Software Engineer
+
+Lead Software Engineer
+
+Principal Engineer (sometimes)
+
+
+Typical stack used there:
+
+Java
+
+Spring Boot
+
+Microservices
+
+Kafka
+
+REST APIs
+
+Cloud (AWS / Kubernetes)
+
+
+Good news: your current stack already matches 80%.
+
+
+---
+
+2️⃣ Typical Interview Process (Mastercard India)
+
+Usually 4–5 rounds
+
+Round 1 — Coding / Problem Solving
+
+Duration: 60 min
+
+Focus:
+
+Problem solving
+
+Clean code
+
+Complexity discussion
+
+
+Difficulty level: LeetCode medium
+
+Typical topics:
+
+HashMap
+
+Sliding window
+
+Tree traversal
+
+Heap / priority queue
+
+LRU cache
+
+
+Example questions:
+
+Longest substring without repeating characters
+
+Top K frequent elements
+
+Merge intervals
+
+Design LRU cache
+
+
+
+---
+
+3️⃣ Java Deep Dive (Very Important)
+
+For 9+ years experience, Java internals are expected.
+
+Topics you must prepare:
+
+Core Java
+
+JVM memory model
+
+Garbage collection
+
+Thread safety
+
+Synchronization
+
+Volatile vs synchronized
+
+Thread pools
+
+
+Typical questions:
+
+Difference between HashMap vs ConcurrentHashMap
+
+What happens when HashMap resize occurs
+
+Explain CompletableFuture
+
+What is ForkJoinPool
+
+
+
+---
+
+4️⃣ Spring Boot / Microservices Round
+
+They expect strong knowledge here.
+
+Prepare topics like:
+
+Spring
+
+Dependency injection
+
+Spring Boot auto configuration
+
+Spring Security basics
+
+REST API design
+
+
+Microservices
+
+Expect questions like:
+
+How do services communicate?
+
+How do you handle service failure?
+
+What is circuit breaker?
+
+How do you handle distributed transactions?
+
+
+
+---
+
+5️⃣ Kafka / Event Driven Architecture
+
+Very important for Mastercard.
+
+Prepare:
+
+Kafka architecture
+
+Producer / consumer
+
+partitions
+
+consumer groups
+
+offset management
+
+
+Typical questions:
+
+How do you guarantee exactly once processing?
+
+What happens when a consumer crashes?
+
+How do you scale Kafka consumers?
+
+
+
+---
+
+6️⃣ System Design Round (Critical for your experience)
+
+At 9–10 years, system design matters most.
+
+Typical Mastercard-style questions:
+
+Design Payment Processing System
+
+Expect discussion on:
+
+microservices architecture
+
+idempotency
+
+retry mechanism
+
+transaction consistency
+
+message queues
+
+scalability
+
+
+
+---
+
+Design Fraud Detection System
+
+Expect:
+
+streaming architecture
+
+Kafka
+
+rule engine
+
+scaling
+
+
+
+---
+
+Design Rate Limiter
+
+Topics:
+
+token bucket
+
+Redis
+
+distributed systems
+
+
+
+---
+
+7️⃣ Database Round
+
+Prepare:
+
+indexing
+
+query optimization
+
+normalization
+
+
+Example questions:
+
+Difference between clustered vs non-clustered index
+
+How to optimize slow SQL query
+
+Handling large datasets
+
+
+
+---
+
+8️⃣ Behavioral Round
+
+Mastercard values:
+
+collaboration
+
+ownership
+
+innovation
+
+
+Typical questions:
+
+Tell me about a production issue you fixed.
+
+Tell me about a complex system you designed.
+
+How do you mentor junior developers?
+
+
+
+---
+
+9️⃣ Topics You MUST Prepare (Priority Order)
+
+Tier 1 (Most Important)
+
+System Design
+
+Java concurrency
+
+Microservices architecture
+
+Kafka
+
+
+Tier 2
+
+Coding (DSA medium)
+
+Spring Boot internals
+
+
+Tier 3
+
+Database optimization
+
+CI/CD pipelines
+
+
+
+---
+
+🔥 What Will Impress Mastercard Interviewers
+
+Given your profile:
+
+Strong answers around:
+
+high throughput APIs
+
+scalable microservices
+
+event-driven architecture
+
+production incident handling
+
+
+Example good story:
+
+> "We improved API latency by optimizing SQL queries and implementing caching, reducing response time by 35%."
+
+
+
+
+---
+
+💰 Salary Range (Pune)
+
+Typical compensation:
+
+Role	Salary
+
+Senior Engineer	₹40–55 LPA
+Lead Engineer	₹50–70 LPA
+
+
+
+---
+
+🚀 If you want, I can also show you:
+
+Top 20 Mastercard interview questions for Java backend engineers
+
+Mastercard system design question with complete answer
+
+Exact LeetCode problems asked in Mastercard interviews
+
+
+These will help you prepare specifically for Mastercard Pune roles.
